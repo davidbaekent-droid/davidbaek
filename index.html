@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수강료 관리 시스템</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --ink:#1E2129;
+  --ink-soft:#5B5F6B;
+  --paper:#FBF9F4;
+  --panel:#FFFFFF;
+  --line:#E4DFD3;
+  --brass:#A9793B;
+  --brass-bg:#F3E9D8;
+  --danger:#B23B3B;
+  --danger-bg:#FBEAEA;
+  --ok:#4B6B45;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Pretendard',-apple-system,sans-serif;background:var(--paper);color:var(--ink);line-height:1.6;}
+.serif{font-family:'Noto Serif KR',serif;}
+.wrap{max-width:980px;margin:0 auto;padding:28px 24px 80px;}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 0 20px;border-bottom:1px solid var(--line);margin-bottom:24px;flex-wrap:wrap;gap:12px;}
+.topbar h1{font-family:'Noto Serif KR',serif;font-size:20px;font-weight:600;}
+.topbar .sub{font-size:12.5px;color:var(--ink-soft);margin-top:4px;}
+.mode-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+
+button{font-family:inherit;cursor:pointer;border:none;font-size:13.5px;}
+.btn{padding:9px 16px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);transition:all .15s ease;}
+.btn:hover{border-color:var(--brass);color:var(--brass);}
+.btn-accent{background:var(--ink);color:#fff;border-color:var(--ink);}
+.btn-accent:hover{background:#2E3340;color:#fff;}
+.btn-accent.on{background:var(--brass);border-color:var(--brass);}
+.btn-sm{padding:6px 12px;font-size:12.5px;border-radius:5px;}
+
+.status-line{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-soft);margin-bottom:22px;flex-wrap:wrap;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--ok);}
+.status-dot.saving{background:var(--brass);}
+.author-input{border:1px solid var(--line);border-radius:5px;padding:5px 10px;font-size:12.5px;font-family:inherit;width:120px;background:var(--panel);}
+
+.tabs{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;}
+.tab-btn{padding:9px 18px;border-radius:20px;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);font-weight:500;}
+.tab-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+.cat-panel{display:none;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:26px 26px 22px;margin-bottom:18px;}
+.cat-panel.active{display:block;}
+.cat-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+.cat-head h2{font-family:'Noto Serif KR',serif;font-size:18px;}
+
+table.fee{width:100%;border-collapse:collapse;}
+table.fee th{text-align:left;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);font-weight:500;padding:0 8px 10px;border-bottom:1px solid var(--line);}
+table.fee th:last-child, table.fee td:last-child{text-align:right;}
+table.fee td{padding:10px 8px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle;}
+table.fee tr:last-child td{border-bottom:none;}
+
+.cell-input{width:100%;border:1px solid transparent;background:transparent;padding:6px 8px;border-radius:5px;font-family:inherit;font-size:14px;color:var(--ink);}
+.cell-input:hover{border-color:var(--line);}
+.cell-input:focus{outline:none;border-color:var(--brass);background:#fff;}
+.price-input{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:var(--brass);}
+.col-level{width:20%;}
+.col-desc{width:34%;}
+.col-time{width:22%;}
+.col-price{width:20%;}
+.col-del{width:30px;}
+
+.del-btn{width:26px;height:26px;border-radius:50%;background:transparent;color:var(--ink-soft);font-size:14px;display:flex;align-items:center;justify-content:center;}
+.del-btn:hover{background:var(--danger-bg);color:var(--danger);}
+
+.add-row-btn{margin-top:14px;font-size:13px;color:var(--brass);background:var(--brass-bg);padding:8px 14px;border-radius:6px;border:1px dashed var(--brass);}
+.add-row-btn:hover{opacity:.85;}
+
+.view-name{font-family:'Noto Serif KR',serif;font-weight:600;font-size:15.5px;}
+.view-desc,.view-time{color:var(--ink-soft);font-size:13px;}
+.view-price{font-variant-numeric:tabular-nums;font-weight:600;color:var(--brass);font-size:15px;}
+.view-price small{font-weight:400;font-size:11.5px;color:var(--ink-soft);margin-left:2px;}
+
+.calc-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:26px 26px 24px;margin-bottom:18px;}
+.calc-card h2{font-family:'Noto Serif KR',serif;font-size:18px;margin-bottom:6px;}
+.calc-card-sub{font-size:12.5px;color:var(--ink-soft);margin-bottom:20px;}
+
+.course-picker{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.course-picker select{flex:1;min-width:220px;border:1px solid var(--line);border-radius:6px;padding:9px 10px;font-family:inherit;font-size:13.5px;background:#fff;color:var(--ink);}
+
+.selected-list{display:flex;flex-direction:column;gap:8px;margin-bottom:8px;}
+.selected-empty{font-size:13px;color:var(--ink-soft);padding:10px 0;}
+.selected-item{display:flex;align-items:center;justify-content:space-between;background:var(--brass-bg);border-radius:6px;padding:9px 12px;font-size:13.5px;}
+.selected-item .info b{font-family:'Noto Serif KR',serif;}
+.selected-item .info span{color:var(--ink-soft);font-size:12px;margin-left:8px;}
+.selected-item .price{font-variant-numeric:tabular-nums;font-weight:600;color:var(--brass);margin-right:0;}
+.qty-control{display:flex;align-items:center;gap:6px;}
+.qty-btn{width:22px;height:22px;border-radius:5px;border:1px solid var(--line);background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:13px;}
+.qty-btn:hover{border-color:var(--brass);color:var(--brass);}
+.qty-num{font-size:13px;min-width:16px;text-align:center;font-variant-numeric:tabular-nums;}
+.view-only-qty{display:none;color:var(--ink-soft);}
+.view-mode .view-only-qty{display:inline;}
+.selected-item .remove-btn{width:22px;height:22px;border-radius:50%;background:transparent;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;font-size:13px;}
+.selected-item .remove-btn:hover{background:var(--danger-bg);color:var(--danger);}
+
+.calc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0;}
+.calc-grid label{font-size:11.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;}
+.calc-grid input{border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-family:inherit;font-size:13.5px;background:#fff;color:var(--ink);}
+.calc-grid input[readonly]{background:var(--brass-bg);color:var(--brass);font-weight:600;}
+
+.calc-summary{display:flex;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
+.calc-summary .stat{flex:1;min-width:130px;padding:0 16px;border-left:1px solid var(--line);}
+.calc-summary .stat:first-child{border-left:none;padding-left:0;}
+.calc-summary .stat span{display:block;font-size:11px;color:var(--ink-soft);margin-bottom:4px;}
+.calc-summary .stat strong{font-size:15px;font-variant-numeric:tabular-nums;color:var(--ink);}
+.calc-summary .stat strong.neg{color:var(--danger);}
+.calc-summary .stat.highlight strong{color:var(--brass);font-size:18px;}
+
+.edit-only{}
+.view-mode .edit-only{display:none !important;}
+
+.note-box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 24px;font-size:13px;color:var(--ink-soft);}
+.note-box textarea{width:100%;border:none;background:transparent;font-family:inherit;font-size:13px;color:var(--ink-soft);resize:vertical;min-height:60px;padding:0;}
+.note-box textarea:focus{outline:none;}
+
+.print-header{display:none;}
+
+@media print{
+  body{background:#fff;}
+  .topbar, .mode-controls, .status-line, .tabs .tab-btn, .add-row-btn, .del-btn, .author-input, .edit-only{display:none !important;}
+  .tabs{display:none;}
+  .cat-panel{display:block !important;border:none;padding:0;margin-bottom:36px;page-break-inside:avoid;}
+  .calc-card{border:none;padding:0;page-break-inside:avoid;}
+  .print-header{display:block;margin-bottom:28px;}
+  .print-header h1{font-family:'Noto Serif KR',serif;font-size:22px;margin-bottom:4px;}
+  .print-header p{font-size:12px;color:var(--ink-soft);}
+  .wrap{padding:0;max-width:100%;}
+}
+
+@media (max-width:640px){
+  .topbar{flex-direction:column;align-items:flex-start;}
+  table.fee, table.fee thead, table.fee tbody, table.fee th, table.fee td, table.fee tr{display:block;}
+  table.fee thead{display:none;}
+  table.fee tr{border-bottom:1px solid var(--line);padding:12px 0;}
+  table.fee td{border-bottom:none;padding:4px 0;}
+  table.fee td:last-child{text-align:left;}
+  .calc-grid{grid-template-columns:1fr;}
+  .calc-summary .stat{border-left:none;padding-left:0;border-top:1px solid var(--line);padding-top:10px;margin-top:10px;}
+  .calc-summary .stat:first-child{border-top:none;margin-top:0;padding-top:0;}
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="app-wrap">
+
+  <div class="print-header">
+    <h1>수강료 안내</h1>
+    <p id="print-date"></p>
+  </div>
+
+  <div class="topbar">
+    <div>
+      <h1 class="serif">수강료 관리 시스템</h1>
+      <div class="sub">직원 공용 · 전 직원 동일한 데이터를 보고 수정합니다</div>
+    </div>
+    <div class="mode-controls">
+      <input class="author-input edit-only" id="author-input" placeholder="작성자 이름" />
+      <button class="btn" id="refresh-btn">새로고침</button>
+      <button class="btn btn-accent on" id="mode-toggle">편집 모드</button>
+      <button class="btn" id="print-btn">인쇄 / PDF</button>
+    </div>
+  </div>
+
+  <div class="status-line edit-only">
+    <span class="status-dot" id="status-dot"></span>
+    <span id="status-text">불러오는 중…</span>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="panels"></div>
+
+  <div class="calc-card">
+    <h2 class="serif">수강료 계산기</h2>
+    <div class="calc-card-sub edit-only">과정을 선택하면 위 카탈로그에 등록된 월 수강료가 자동으로 반영됩니다.</div>
+
+    <div class="course-picker edit-only">
+      <select id="course-select"></select>
+      <button class="btn btn-sm" id="course-add-btn">+ 과목 추가</button>
+    </div>
+
+    <div class="selected-list" id="selected-list"></div>
+
+    <div class="calc-grid">
+      <label class="edit-only">프로모션 · 할인명<input id="calc-discount-label" placeholder="예: 정규과정 지원"></label>
+      <label class="edit-only">할인율(%)<input id="calc-discount-rate" readonly placeholder="자동 계산"></label>
+      <label class="edit-only">할인 금액(원)<input id="calc-discount-amount" placeholder="예: 1200000"></label>
+    </div>
+
+    <div class="calc-summary">
+      <div class="stat"><span>등록 과목</span><strong id="calc-count">0과목</strong></div>
+      <div class="stat"><span>총 수강료</span><strong id="calc-total">-</strong></div>
+      <div class="stat"><span id="calc-discount-label-out">할인</span><strong class="neg" id="calc-discount">-</strong></div>
+      <div class="stat highlight"><span>할인 후 수강료</span><strong id="calc-final">-</strong></div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <strong class="edit-only" style="display:block;margin-bottom:8px;color:var(--ink);font-size:13px;">안내 사항 (학생 공지용)</strong>
+    <textarea id="notes-input" placeholder="예: 형제·자매 등록 시 10% 할인, 교재비 별도 등"></textarea>
+  </div>
+
+</div>
+
+<script>
+/*
+  1. Firebase 콘솔(https://console.firebase.google.com)에서 프로젝트를 만든 뒤
+     '웹 앱 추가'로 아래 값을 발급받아 그대로 채워 넣으세요.
+  2. Firestore Database를 '테스트 모드'가 아닌 '프로덕션 모드'로 만들고,
+     Authentication에서 '익명' 로그인을 사용 설정하세요.
+  3. Firestore 규칙(Rules)은 아래처럼 설정하세요 (로그인한 사용자만 읽기/쓰기 허용):
+     rules_version = '2';
+     service cloud.firestore {
+       match /databases/{database}/documents {
+         match /tuition/{docId} {
+           allow read, write: if request.auth != null;
+         }
+       }
+     }
+*/
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const docRef = db.collection('tuition').doc('main');
+
+function cid(){ return 'r' + Math.random().toString(36).slice(2, 9); }
+
+const DEFAULT_DATA = {
+  notes: '형제·자매 등록 시 2번째 수강생부터 10% 할인이 적용됩니다. 교재비 및 활동비는 별도입니다.',
+  updatedAt: null,
+  updatedBy: '',
+  categories: [
+    { id: 'acting', name: '연기', rows: [
+      { id: cid(), level: '입문', desc: '발성·발음, 기초 연기 훈련', time: '주1회 60분', price: '400000' },
+      { id: cid(), level: '기초', desc: '장면 연기, 감정 표현 훈련', time: '주2회 60분', price: '' },
+      { id: cid(), level: '중급', desc: '캐릭터 분석, 즉흥 연기', time: '주2회 90분', price: '' },
+      { id: cid(), level: '고급', desc: '오디션 실전 대비', time: '주2회 120분', price: '600000' },
+      { id: cid(), level: '전문', desc: '데뷔·작품 투입 대비 개별 지도', time: '주3회 120분', price: '' }
+    ]},
+    { id: 'vocal', name: '보컬', rows: [
+      { id: cid(), level: '취미', desc: '발성 기초, 원하는 곡 연습', time: '주1회 50분', price: '' },
+      { id: cid(), level: '전문', desc: '보컬 트레이닝, 곡 해석 심화', time: '주2회 60분', price: '' },
+      { id: cid(), level: '입시', desc: '실용음악 입시 대비', time: '주3회 60분', price: '' },
+      { id: cid(), level: '그룹', desc: '2~4인 그룹 레슨', time: '주1회 60분', price: '' }
+    ]},
+    { id: 'live', name: '라이브커머스', rows: [
+      { id: cid(), level: '정규반', desc: '카메라 앞 진행, 상품 소개 실습', time: '주2회 90분', price: '' }
+    ]},
+    { id: 'compose', name: '작곡', rows: [
+      { id: cid(), level: '정규반', desc: '작곡 이론, 편곡 및 실습', time: '주2회 90분', price: '' }
+    ]}
+  ],
+  calculator: { items: [], discountLabel: '', discountAmount: '' }
+};
+
+let state = null;
+let editMode = true;
+let saveTimer = null;
+
+const statusDot = document.getElementById('status-dot');
+const statusText = document.getElementById('status-text');
+const tabsEl = document.getElementById('tabs');
+const panelsEl = document.getElementById('panels');
+const authorInput = document.getElementById('author-input');
+const notesInput = document.getElementById('notes-input');
+const modeToggle = document.getElementById('mode-toggle');
+const appWrap = document.getElementById('app-wrap');
+const courseSelect = document.getElementById('course-select');
+const selectedListEl = document.getElementById('selected-list');
+
+function setStatus(text, saving){
+  statusText.textContent = text;
+  statusDot.classList.toggle('saving', !!saving);
+}
+
+async function loadData(){
+  setStatus('불러오는 중…', true);
+  try{
+    const snap = await docRef.get();
+    if(snap.exists){
+      state = snap.data();
+      state.categories.forEach(cat => cat.rows.forEach(r => { if(!r.id) r.id = cid(); }));
+      if(!state.calculator) state.calculator = { items: [], discountLabel: '', discountAmount: '' };
+      if(!state.calculator.items){
+        const legacyIds = state.calculator.courseIds || [];
+        state.calculator.items = legacyIds.map(courseId => ({ instanceId: cid(), courseId }));
+        delete state.calculator.courseIds;
+      }
+      const expanded = [];
+      state.calculator.items.forEach(item => {
+        const qty = item.qty || 1;
+        for(let i = 0; i < qty; i++) expanded.push({ instanceId: i === 0 ? item.instanceId : cid(), courseId: item.courseId });
+      });
+      state.calculator.items = expanded;
+    }else{
+      state = DEFAULT_DATA;
+      await persist(false);
+    }
+  }catch(e){
+    console.error(e);
+    state = state || DEFAULT_DATA;
+    setStatus('불러오기 실패 — Firebase 설정을 확인해주세요', false);
+    render();
+    return;
+  }
+  authorInput.value = state.updatedBy || '';
+  notesInput.value = state.notes || '';
+  document.getElementById('calc-discount-label').value = state.calculator.discountLabel || '';
+  document.getElementById('calc-discount-amount').value = state.calculator.discountAmount || '';
+  render();
+  updateStatusFromState();
+}
+
+async function persist(showSaving = true){
+  if(showSaving) setStatus('저장 중…', true);
+  state.updatedAt = new Date().toISOString();
+  try{
+    await docRef.set(state);
+    updateStatusFromState();
+  }catch(e){
+    console.error(e);
+    setStatus('저장 실패 — Firebase 설정 또는 네트워크를 확인해주세요', false);
+  }
+}
+
+function updateStatusFromState(){
+  if(!state.updatedAt){ setStatus('저장된 데이터 없음'); return; }
+  const d = new Date(state.updatedAt);
+  const t = d.toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  const who = state.updatedBy ? ` · ${state.updatedBy}님이 수정` : '';
+  setStatus(`최근 저장: ${t}${who}`);
+}
+
+function scheduleSave(){
+  setStatus('저장 중…', true);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => persist(true), 500);
+}
+
+function formatPrice(v){
+  const n = parseInt(String(v).replace(/[^0-9]/g,''), 10);
+  if(isNaN(n)) return '';
+  return n.toLocaleString('ko-KR');
+}
+
+function findRowById(id){
+  for(const cat of state.categories){
+    const row = cat.rows.find(r => r.id === id);
+    if(row) return { row, cat };
+  }
+  return null;
+}
+
+function render(){
+  appWrap.classList.toggle('view-mode', !editMode);
+  renderCatalog();
+  renderCourseOptions();
+  renderCalculator();
+}
+
+function renderCatalog(){
+  tabsEl.innerHTML = '';
+  panelsEl.innerHTML = '';
+
+  state.categories.forEach((cat, idx) => {
+    const tab = document.createElement('button');
+    tab.className = 'tab-btn' + (idx === 0 ? ' active' : '');
+    tab.textContent = cat.name;
+    tab.dataset.cat = cat.id;
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.cat-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('panel-' + cat.id).classList.add('active');
+    });
+    tabsEl.appendChild(tab);
+
+    const panel = document.createElement('div');
+    panel.className = 'cat-panel' + (idx === 0 ? ' active' : '');
+    panel.id = 'panel-' + cat.id;
+    panel.innerHTML = renderCategoryHtml(cat);
+    panelsEl.appendChild(panel);
+  });
+
+  attachCatalogEvents();
+}
+
+function renderCategoryHtml(cat){
+  const rowsHtml = cat.rows.map(r => editMode ? editRowHtml(cat.id, r) : viewRowHtml(r)).join('');
+  const head = editMode
+    ? `<tr><th class="col-level">과정</th><th class="col-desc">설명</th><th class="col-time">시간</th><th class="col-price">월 수강료</th><th class="col-del"></th></tr>`
+    : `<tr><th class="col-level">과정</th><th class="col-desc">설명</th><th class="col-time">시간</th><th class="col-price">월 수강료</th></tr>`;
+  return `
+    <div class="cat-head"><h2 class="serif">${cat.name}</h2></div>
+    <table class="fee"><thead>${head}</thead><tbody>${rowsHtml}</tbody></table>
+    ${editMode ? `<button class="add-row-btn" data-add="${cat.id}">+ 과정 추가</button>` : ''}
+  `;
+}
+
+function editRowHtml(catId, r){
+  return `
+    <tr data-row="${r.id}" data-cat="${catId}">
+      <td><input class="cell-input" data-field="level" value="${escapeAttr(r.level)}" placeholder="과정명"></td>
+      <td><input class="cell-input" data-field="desc" value="${escapeAttr(r.desc)}" placeholder="설명"></td>
+      <td><input class="cell-input" data-field="time" value="${escapeAttr(r.time)}" placeholder="예: 주2회 60분"></td>
+      <td><input class="cell-input price-input" data-field="price" value="${escapeAttr(r.price)}" placeholder="금액"></td>
+      <td><button class="del-btn" data-del="${r.id}" aria-label="삭제">✕</button></td>
+    </tr>
+  `;
+}
+
+function viewRowHtml(r){
+  const price = formatPrice(r.price);
+  return `
+    <tr>
+      <td><div class="view-name">${escapeHtml(r.level)}</div></td>
+      <td><div class="view-desc">${escapeHtml(r.desc)}</div></td>
+      <td><div class="view-time">${escapeHtml(r.time)}</div></td>
+      <td><div class="view-price">${price ? price : '-'}${price ? '<small>원</small>' : ''}</div></td>
+    </tr>
+  `;
+}
+
+function escapeHtml(s){
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(s){ return escapeHtml(s); }
+
+function attachCatalogEvents(){
+  if(!editMode) return;
+  panelsEl.querySelectorAll('input.cell-input').forEach(input => {
+    input.addEventListener('input', () => {
+      const tr = input.closest('tr');
+      const cat = state.categories.find(c => c.id === tr.dataset.cat);
+      const row = cat.rows.find(r => r.id === tr.dataset.row);
+      row[input.dataset.field] = input.value;
+      if(input.dataset.field === 'price' || input.dataset.field === 'level') renderCourseOptions();
+      renderCalculator();
+      scheduleSave();
+    });
+  });
+  panelsEl.querySelectorAll('.del-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rowId = btn.dataset.del;
+      state.categories.forEach(cat => { cat.rows = cat.rows.filter(r => r.id !== rowId); });
+      state.calculator.courseIds = state.calculator.courseIds.filter(id => id !== rowId);
+      render();
+      scheduleSave();
+    });
+  });
+  panelsEl.querySelectorAll('[data-add]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cat = state.categories.find(c => c.id === btn.dataset.add);
+      cat.rows.push({ id: cid(), level: '', desc: '', time: '', price: '' });
+      render();
+      const activeTab = document.querySelector(`.tab-btn[data-cat="${btn.dataset.add}"]`);
+      if(activeTab) activeTab.click();
+      scheduleSave();
+    });
+  });
+}
+
+function renderCourseOptions(){
+  const options = ['<option value="">과정 선택…</option>'];
+  state.categories.forEach(cat => {
+    cat.rows.forEach(r => {
+      if(!r.level) return;
+      const priceLabel = r.price ? formatPrice(r.price) + '원' : '가격 미입력';
+      options.push(`<option value="${r.id}">${escapeHtml(cat.name)} · ${escapeHtml(r.level)} (${priceLabel})</option>`);
+    });
+  });
+  courseSelect.innerHTML = options.join('');
+}
+
+function renderCalculator(){
+  const items = state.calculator.items
+    .map(item => {
+      const found = findRowById(item.courseId);
+      return found ? { item, row: found.row, cat: found.cat } : null;
+    })
+    .filter(Boolean);
+
+  if(items.length === 0){
+    selectedListEl.innerHTML = `<div class="selected-empty">${editMode ? '위에서 과정을 선택해 추가해주세요.' : '선택된 과정이 없습니다.'}</div>`;
+  }else{
+    selectedListEl.innerHTML = items.map(({item, row, cat}) => `
+      <div class="selected-item">
+        <div class="info"><b>${escapeHtml(row.level)}</b><span>${escapeHtml(cat.name)}${row.time ? ' · ' + escapeHtml(row.time) : ''}</span></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="price">${row.price ? formatPrice(row.price) + '원/월' : '가격 미입력'}</span>
+          <button class="remove-btn edit-only" data-remove-course="${item.instanceId}" aria-label="제거">✕</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  const total = items.reduce((sum, {row}) => sum + (parseFloat(String(row.price).replace(/[^0-9.]/g,'')) || 0), 0);
+  const discount = parseFloat(String(state.calculator.discountAmount).replace(/[^0-9.]/g,'')) || 0;
+  const hasCalc = items.length > 0;
+  const final = Math.max(total - discount, 0);
+
+  document.getElementById('calc-count').textContent = items.length + '과목';
+  document.getElementById('calc-total').textContent = hasCalc ? formatPrice(total) + '원' : '-';
+  document.getElementById('calc-discount').textContent = hasCalc && discount ? '-' + formatPrice(discount) + '원' : '-';
+  document.getElementById('calc-final').textContent = hasCalc ? formatPrice(final) + '원' : '-';
+  document.getElementById('calc-discount-label-out').textContent = '할인' + (state.calculator.discountLabel ? ' · ' + state.calculator.discountLabel : '');
+
+  const rate = hasCalc && total > 0 && discount > 0 ? Math.round((discount / total) * 100) : null;
+  document.getElementById('calc-discount-rate').value = rate !== null ? rate + '%' : '';
+
+  panelsAttachCalcRemoveEvents();
+}
+
+function panelsAttachCalcRemoveEvents(){
+  if(!editMode) return;
+  selectedListEl.querySelectorAll('[data-remove-course]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const instanceId = btn.dataset.removeCourse;
+      state.calculator.items = state.calculator.items.filter(i => i.instanceId !== instanceId);
+      renderCalculator();
+      scheduleSave();
+    });
+  });
+}
+
+document.getElementById('course-add-btn').addEventListener('click', () => {
+  const id = courseSelect.value;
+  if(!id) return;
+  state.calculator.items.push({ instanceId: cid(), courseId: id });
+  renderCalculator();
+  scheduleSave();
+});
+
+document.getElementById('calc-discount-label').addEventListener('input', (e) => {
+  state.calculator.discountLabel = e.target.value;
+  renderCalculator();
+  scheduleSave();
+});
+document.getElementById('calc-discount-amount').addEventListener('input', (e) => {
+  state.calculator.discountAmount = e.target.value;
+  renderCalculator();
+  scheduleSave();
+});
+
+modeToggle.addEventListener('click', () => {
+  editMode = !editMode;
+  modeToggle.textContent = editMode ? '편집 모드' : '학생용 보기';
+  modeToggle.classList.toggle('on', editMode);
+  render();
+});
+
+document.getElementById('print-btn').addEventListener('click', () => {
+  document.getElementById('print-date').textContent = new Date().toLocaleDateString('ko-KR');
+  window.print();
+});
+
+authorInput.addEventListener('input', () => {
+  state.updatedBy = authorInput.value;
+  scheduleSave();
+});
+notesInput.addEventListener('input', () => {
+  state.notes = notesInput.value;
+  scheduleSave();
+});
+
+document.getElementById('refresh-btn').addEventListener('click', () => {
+  loadData();
+});
+
+firebase.auth().onAuthStateChanged(user => {
+  if(user){
+    loadData();
+  }
+});
+firebase.auth().signInAnonymously().catch(err => {
+  console.error(err);
+  setStatus('로그인 실패 — Firebase 설정을 확인해주세요', false);
+});
+</script>
+</body>
+</html>
