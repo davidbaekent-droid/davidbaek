@@ -105,10 +105,20 @@ table.fee tr:last-child td{border-bottom:none;}
 .selected-item .remove-btn{width:22px;height:22px;border-radius:50%;background:transparent;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;font-size:13px;}
 .selected-item .remove-btn:hover{background:var(--danger-bg);color:var(--danger);}
 
-.calc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0;}
+.calc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0;}
 .calc-grid label{font-size:11.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;}
 .calc-grid input{border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-family:inherit;font-size:13.5px;background:#fff;color:var(--ink);}
 .calc-grid input[readonly]{background:var(--brass-bg);color:var(--brass);font-weight:600;}
+.discount-grid{grid-template-columns:2fr 1fr 1fr;}
+.discount-grid label.wide{grid-column:span 1;}
+.student-name-field{margin-bottom:16px;}
+.student-name-field label{font-size:11.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;max-width:280px;}
+.student-name-field input{border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-family:inherit;font-size:13.5px;background:#fff;color:var(--ink);}
+.print-save-hint{margin-top:16px;font-size:12px;color:var(--ink-soft);border-top:1px solid var(--line);padding-top:14px;}
+.record-item{display:flex;align-items:center;justify-content:space-between;background:var(--brass-bg);border-radius:6px;padding:9px 12px;font-size:13.5px;margin-bottom:8px;}
+.record-item .info b{font-family:'Noto Serif KR',serif;}
+.record-item .info span{color:var(--ink-soft);font-size:12px;margin-left:8px;}
+.record-item .price{font-variant-numeric:tabular-nums;font-weight:600;color:var(--brass);}
 
 .calc-summary{display:flex;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;}
 .calc-summary .stat{flex:1;min-width:130px;padding:0 16px;border-left:1px solid var(--line);}
@@ -156,7 +166,7 @@ table.fee tr:last-child td{border-bottom:none;}
 <div class="wrap" id="app-wrap">
 
   <div class="print-header">
-    <h1>수강료 안내</h1>
+    <h1>수강료 안내<span id="print-header-name"></span></h1>
     <p id="print-date"></p>
   </div>
 
@@ -185,6 +195,10 @@ table.fee tr:last-child td{border-bottom:none;}
     <h2 class="serif">수강료 계산기</h2>
     <div class="calc-card-sub edit-only">과정을 선택하면 위 카탈로그에 등록된 월 수강료가 자동으로 반영됩니다.</div>
 
+    <div class="student-name-field edit-only">
+      <label>수강생 이름<input id="student-name" placeholder="예: 홍길동"></label>
+    </div>
+
     <div class="course-picker edit-only">
       <select id="course-select"></select>
       <button class="btn btn-sm" id="course-add-btn">+ 과목 추가</button>
@@ -192,10 +206,15 @@ table.fee tr:last-child td{border-bottom:none;}
 
     <div class="selected-list" id="selected-list"></div>
 
-    <div class="calc-grid">
-      <label class="edit-only">프로모션 · 할인명<input id="calc-discount-label" placeholder="예: 정규과정 지원"></label>
+    <div class="calc-grid discount-grid">
+      <label class="edit-only wide">프로모션 · 할인명 1<input id="calc-discount-label" placeholder="예: 정규과정 지원"></label>
       <label class="edit-only">할인율(%)<input id="calc-discount-rate" readonly placeholder="자동 계산"></label>
       <label class="edit-only">할인 금액(원)<input id="calc-discount-amount" placeholder="예: 1200000"></label>
+    </div>
+    <div class="calc-grid discount-grid">
+      <label class="edit-only wide">프로모션 · 할인명 2<input id="calc-discount-label2" placeholder="예: 형제·자매 할인"></label>
+      <label class="edit-only">할인율(%)<input id="calc-discount-rate2" readonly placeholder="자동 계산"></label>
+      <label class="edit-only">할인 금액(원)<input id="calc-discount-amount2" placeholder="예: 200000"></label>
     </div>
 
     <div class="calc-summary">
@@ -204,6 +223,14 @@ table.fee tr:last-child td{border-bottom:none;}
       <div class="stat"><span id="calc-discount-label-out">할인</span><strong class="neg" id="calc-discount">-</strong></div>
       <div class="stat highlight"><span>할인 후 수강료</span><strong id="calc-final">-</strong></div>
     </div>
+    <div class="print-save-hint edit-only" id="print-save-hint">인쇄/PDF 버튼을 누르면 이 계산 내용이 수강생 이름으로 자동 저장됩니다.</div>
+  </div>
+
+  <div class="calc-card edit-only" id="records-card">
+    <h2 class="serif">저장된 수강생 기록</h2>
+    <div class="calc-card-sub">인쇄/PDF를 누를 때마다 기록이 쌓여요. 최신 50건까지 볼 수 있어요.</div>
+    <button class="btn btn-sm" id="records-load-btn">기록 불러오기</button>
+    <div class="selected-list" id="records-list" style="margin-top:14px;"></div>
   </div>
 
   <div class="note-box">
@@ -241,6 +268,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const docRef = db.collection('tuition').doc('main');
+const studentsCol = db.collection('students');
 
 function cid(){ return 'r' + Math.random().toString(36).slice(2, 9); }
 
@@ -269,7 +297,7 @@ const DEFAULT_DATA = {
       { id: cid(), level: '정규반', desc: '작곡 이론, 편곡 및 실습', time: '주2회 90분', price: '' }
     ]}
   ],
-  calculator: { items: [], discountLabel: '', discountAmount: '' }
+  calculator: { items: [], discountLabel: '', discountAmount: '', discountLabel2: '', discountAmount2: '' }
 };
 
 let state = null;
@@ -299,7 +327,9 @@ async function loadData(){
     if(snap.exists){
       state = snap.data();
       state.categories.forEach(cat => cat.rows.forEach(r => { if(!r.id) r.id = cid(); }));
-      if(!state.calculator) state.calculator = { items: [], discountLabel: '', discountAmount: '' };
+      if(!state.calculator) state.calculator = { items: [], discountLabel: '', discountAmount: '', discountLabel2: '', discountAmount2: '' };
+      if(state.calculator.discountLabel2 === undefined) state.calculator.discountLabel2 = '';
+      if(state.calculator.discountAmount2 === undefined) state.calculator.discountAmount2 = '';
       if(!state.calculator.items){
         const legacyIds = state.calculator.courseIds || [];
         state.calculator.items = legacyIds.map(courseId => ({ instanceId: cid(), courseId }));
@@ -326,6 +356,8 @@ async function loadData(){
   notesInput.value = state.notes || '';
   document.getElementById('calc-discount-label').value = state.calculator.discountLabel || '';
   document.getElementById('calc-discount-amount').value = state.calculator.discountAmount || '';
+  document.getElementById('calc-discount-label2').value = state.calculator.discountLabel2 || '';
+  document.getElementById('calc-discount-amount2').value = state.calculator.discountAmount2 || '';
   render();
   updateStatusFromState();
 }
@@ -491,13 +523,25 @@ function renderCourseOptions(){
   courseSelect.innerHTML = options.join('');
 }
 
-function renderCalculator(){
+function getCalculatorSnapshot(){
   const items = state.calculator.items
     .map(item => {
       const found = findRowById(item.courseId);
       return found ? { item, row: found.row, cat: found.cat } : null;
     })
     .filter(Boolean);
+  const total = items.reduce((sum, {row}) => sum + (parseFloat(String(row.price).replace(/[^0-9.]/g,'')) || 0), 0);
+  const discount1 = parseFloat(String(state.calculator.discountAmount).replace(/[^0-9.]/g,'')) || 0;
+  const discount2 = parseFloat(String(state.calculator.discountAmount2).replace(/[^0-9.]/g,'')) || 0;
+  const discount = discount1 + discount2;
+  const final = Math.max(total - discount, 0);
+  const rate1 = items.length > 0 && total > 0 && discount1 > 0 ? Math.round((discount1 / total) * 100) : null;
+  const rate2 = items.length > 0 && total > 0 && discount2 > 0 ? Math.round((discount2 / total) * 100) : null;
+  return { items, total, discount1, discount2, discount, final, rate1, rate2 };
+}
+
+function renderCalculator(){
+  const { items, total, discount1, discount2, discount, final, rate1, rate2 } = getCalculatorSnapshot();
 
   if(items.length === 0){
     selectedListEl.innerHTML = `<div class="selected-empty">${editMode ? '위에서 과정을 선택해 추가해주세요.' : '선택된 과정이 없습니다.'}</div>`;
@@ -513,19 +557,15 @@ function renderCalculator(){
     `).join('');
   }
 
-  const total = items.reduce((sum, {row}) => sum + (parseFloat(String(row.price).replace(/[^0-9.]/g,'')) || 0), 0);
-  const discount = parseFloat(String(state.calculator.discountAmount).replace(/[^0-9.]/g,'')) || 0;
   const hasCalc = items.length > 0;
-  const final = Math.max(total - discount, 0);
-
   document.getElementById('calc-count').textContent = items.length + '과목';
   document.getElementById('calc-total').textContent = hasCalc ? formatPrice(total) + '원' : '-';
   document.getElementById('calc-discount').textContent = hasCalc && discount ? '-' + formatPrice(discount) + '원' : '-';
   document.getElementById('calc-final').textContent = hasCalc ? formatPrice(final) + '원' : '-';
-  document.getElementById('calc-discount-label-out').textContent = '할인' + (state.calculator.discountLabel ? ' · ' + state.calculator.discountLabel : '');
-
-  const rate = hasCalc && total > 0 && discount > 0 ? Math.round((discount / total) * 100) : null;
-  document.getElementById('calc-discount-rate').value = rate !== null ? rate + '%' : '';
+  const labels = [state.calculator.discountLabel, state.calculator.discountLabel2].filter(Boolean);
+  document.getElementById('calc-discount-label-out').textContent = '할인' + (labels.length ? ' · ' + labels.join(' + ') : '');
+  document.getElementById('calc-discount-rate').value = rate1 !== null ? rate1 + '%' : '';
+  document.getElementById('calc-discount-rate2').value = rate2 !== null ? rate2 + '%' : '';
 
   panelsAttachCalcRemoveEvents();
 }
@@ -560,6 +600,16 @@ document.getElementById('calc-discount-amount').addEventListener('input', (e) =>
   renderCalculator();
   scheduleSave();
 });
+document.getElementById('calc-discount-label2').addEventListener('input', (e) => {
+  state.calculator.discountLabel2 = e.target.value;
+  renderCalculator();
+  scheduleSave();
+});
+document.getElementById('calc-discount-amount2').addEventListener('input', (e) => {
+  state.calculator.discountAmount2 = e.target.value;
+  renderCalculator();
+  scheduleSave();
+});
 
 modeToggle.addEventListener('click', () => {
   editMode = !editMode;
@@ -568,9 +618,65 @@ modeToggle.addEventListener('click', () => {
   render();
 });
 
-document.getElementById('print-btn').addEventListener('click', () => {
+async function saveStudentRecord(){
+  const { items, total, discount1, discount2, discount, final } = getCalculatorSnapshot();
+  if(items.length === 0) return;
+  const nameInput = document.getElementById('student-name');
+  const studentName = (nameInput && nameInput.value.trim()) || '(이름 미입력)';
+  const record = {
+    studentName,
+    items: items.map(({row, cat}) => ({ category: cat.name, level: row.level, price: row.price || '' })),
+    discountLabel: state.calculator.discountLabel || '',
+    discountAmount: discount1,
+    discountLabel2: state.calculator.discountLabel2 || '',
+    discountAmount2: discount2,
+    discountTotal: discount,
+    total,
+    final,
+    savedBy: state.updatedBy || '',
+    savedAt: new Date().toISOString()
+  };
+  try{
+    await studentsCol.add(record);
+  }catch(e){
+    console.error(e);
+  }
+}
+
+document.getElementById('print-btn').addEventListener('click', async () => {
+  const nameInput = document.getElementById('student-name');
+  const nameEl = document.getElementById('print-header-name');
+  nameEl.textContent = nameInput && nameInput.value.trim() ? ' - ' + nameInput.value.trim() : '';
   document.getElementById('print-date').textContent = new Date().toLocaleDateString('ko-KR');
+  if(editMode) await saveStudentRecord();
   window.print();
+});
+
+document.getElementById('records-load-btn').addEventListener('click', async () => {
+  const listEl = document.getElementById('records-list');
+  listEl.innerHTML = '<div class="selected-empty">불러오는 중…</div>';
+  try{
+    const snap = await studentsCol.orderBy('savedAt', 'desc').limit(50).get();
+    if(snap.empty){
+      listEl.innerHTML = '<div class="selected-empty">저장된 기록이 없습니다.</div>';
+      return;
+    }
+    listEl.innerHTML = snap.docs.map(doc => {
+      const r = doc.data();
+      const d = new Date(r.savedAt);
+      const dateStr = d.toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      const courseSummary = r.items.map(i => i.level).join(', ');
+      return `
+        <div class="record-item">
+          <div class="info"><b>${escapeHtml(r.studentName)}</b><span>${dateStr}${r.savedBy ? ' · ' + escapeHtml(r.savedBy) : ''} · ${escapeHtml(courseSummary)}</span></div>
+          <div class="price">${formatPrice(r.final)}원</div>
+        </div>
+      `;
+    }).join('');
+  }catch(e){
+    console.error(e);
+    listEl.innerHTML = '<div class="selected-empty">불러오기 실패 — Firestore 규칙을 확인해주세요.</div>';
+  }
 });
 
 authorInput.addEventListener('input', () => {
