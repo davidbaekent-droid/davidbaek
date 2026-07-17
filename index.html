@@ -10,6 +10,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 :root{
   --ink:#1E2129;
@@ -182,11 +183,45 @@ table.fee tr:last-child td{border-bottom:none;}
   .print-header{display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:28px;}
   .print-header h1{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Pretendard',sans-serif;font-size:22px;margin:14px 0 4px;}
   .print-header p{font-size:12px;color:var(--ink-soft);}
+  .print-header-text{display:none;}
   .print-logo{height:116px;width:auto;}
   .wrap{padding:0;max-width:100%;position:relative;z-index:1;}
   .notes-display{display:block !important;}
   .brand-logo{display:none !important;}
 }
+
+body.force-print-view{
+  --ink:#1E2129;
+  --ink-dark:#1E2129;
+  --ink-soft:#5B5F6B;
+  --paper:#ffffff;
+  --panel:#ffffff;
+  --line:#E4DFD3;
+  --brass:#A9793B;
+  --brass-bg:#F3E9D8;
+  --danger:#B23B3B;
+  --danger-bg:#FBEAEA;
+  --ok:#4B6B45;
+  background:#fff;
+}
+body.force-print-view .topbar,
+body.force-print-view .mode-controls,
+body.force-print-view .status-line,
+body.force-print-view .tabs,
+body.force-print-view .add-row-btn,
+body.force-print-view .del-btn,
+body.force-print-view .author-input,
+body.force-print-view .edit-only{display:none !important;}
+body.force-print-view .cat-panel{display:none !important;}
+body.force-print-view .calc-card{border:none;padding:0;}
+body.force-print-view .print-header{display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:28px;}
+body.force-print-view .print-header h1{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Pretendard',sans-serif;font-size:22px;margin:14px 0 4px;}
+body.force-print-view .print-header p{font-size:12px;color:var(--ink-soft);}
+body.force-print-view .print-header-text{display:none;}
+body.force-print-view .print-logo{height:116px;width:auto;}
+body.force-print-view .wrap{padding:32px;max-width:700px;position:relative;z-index:1;background:#fff;}
+body.force-print-view .notes-display{display:block !important;}
+body.force-print-view .brand-logo{display:none !important;}
 
 @media (max-width:640px){
   .wrap{padding-top:76px;}
@@ -226,6 +261,7 @@ table.fee tr:last-child td{border-bottom:none;}
       <button class="btn" id="refresh-btn">새로고침</button>
       <button class="btn btn-accent on" id="mode-toggle">편집 모드</button>
       <button class="btn" id="print-btn">인쇄 / PDF</button>
+      <button class="btn" id="jpg-btn">이미지 저장</button>
     </div>
   </div>
 
@@ -277,14 +313,7 @@ table.fee tr:last-child td{border-bottom:none;}
         <div class="breakdown-item highlight"><span>비중</span><strong id="breakdown-pct">-</strong></div>
       </div>
     </div>
-    <div class="print-save-hint edit-only" id="print-save-hint">인쇄/PDF 버튼을 누르면 이 계산 내용이 수강생 이름으로 자동 저장됩니다.</div>
-  </div>
-
-  <div class="calc-card edit-only" id="records-card">
-    <h2 class="serif">저장된 수강생 기록</h2>
-    <div class="calc-card-sub">인쇄/PDF를 누를 때마다 기록이 쌓여요. 최신 50건까지 볼 수 있어요.</div>
-    <button class="btn btn-sm" id="records-load-btn">기록 불러오기</button>
-    <div class="selected-list" id="records-list" style="margin-top:14px;"></div>
+    <div class="print-save-hint edit-only" id="print-save-hint">인쇄/PDF 또는 이미지 저장 버튼을 누르면 이 계산 내용이 담긴 결과가 만들어집니다.</div>
   </div>
 
   <div class="note-box">
@@ -323,7 +352,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const docRef = db.collection('tuition').doc('main');
-const studentsCol = db.collection('students');
 
 function cid(){ return 'r' + Math.random().toString(36).slice(2, 9); }
 
@@ -796,72 +824,58 @@ modeToggle.addEventListener('click', () => {
   render();
 });
 
-async function saveStudentRecord(){
-  const { items, total, discount1, discount2, discount, final } = getCalculatorSnapshot();
-  if(items.length === 0) return;
-  const nameInput = document.getElementById('student-name');
-  const studentName = (nameInput && nameInput.value.trim()) || '(이름 미입력)';
-  const record = {
-    studentName,
-    items: items.map(({row, cat, originalPrice, deducted, adjustedPrice, monthLabel}) => ({
-      category: cat.name,
-      level: row.level,
-      monthLabel: monthLabel || null,
-      originalPrice,
-      deducted,
-      finalPrice: adjustedPrice
-    })),
-    discountLabel: state.calculator.discountLabel || '',
-    discountAmount: discount1,
-    discountLabel2: state.calculator.discountLabel2 || '',
-    discountAmount2: discount2,
-    discountTotal: discount,
-    total,
-    final,
-    savedBy: state.updatedBy || '',
-    savedAt: new Date().toISOString()
-  };
-  try{
-    await studentsCol.add(record);
-  }catch(e){
-    console.error(e);
-  }
-}
-
-document.getElementById('print-btn').addEventListener('click', async () => {
+function preparePrintHeader(){
   const nameInput = document.getElementById('student-name');
   const nameEl = document.getElementById('print-header-name');
   nameEl.textContent = nameInput && nameInput.value.trim() ? nameInput.value.trim() : '';
   document.getElementById('print-date').textContent = new Date().toLocaleDateString('ko-KR');
-  if(editMode) await saveStudentRecord();
+}
+
+async function exportAsJpg(){
+  preparePrintHeader();
+  document.body.classList.add('force-print-view');
+  await new Promise(resolve => setTimeout(resolve, 60));
+  try{
+    const canvas = await html2canvas(document.getElementById('app-wrap'), {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true
+    });
+    const nameInput = document.getElementById('student-name');
+    const namePart = nameInput && nameInput.value.trim() ? nameInput.value.trim() : '수강료';
+    const datePart = new Date().toISOString().slice(0, 10);
+    const link = document.createElement('a');
+    link.download = `${namePart}_${datePart}.jpg`;
+    link.href = canvas.toDataURL('image/jpeg', 0.92);
+    link.click();
+  }catch(e){
+    console.error(e);
+    alert('이미지 저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
+  }finally{
+    document.body.classList.remove('force-print-view');
+  }
+}
+
+document.getElementById('print-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('print-btn');
+  const originalText = btn.textContent;
+  btn.textContent = '이미지 저장 중…';
+  btn.disabled = true;
+  await exportAsJpg();
+  btn.textContent = originalText;
+  btn.disabled = false;
+  preparePrintHeader();
   window.print();
 });
 
-document.getElementById('records-load-btn').addEventListener('click', async () => {
-  const listEl = document.getElementById('records-list');
-  listEl.innerHTML = '<div class="selected-empty">불러오는 중…</div>';
-  try{
-    const snap = await studentsCol.orderBy('savedAt', 'desc').limit(50).get();
-    if(snap.empty){
-      listEl.innerHTML = '<div class="selected-empty">저장된 기록이 없습니다.</div>';
-      return;
-    }
-    listEl.innerHTML = snap.docs.map(doc => {
-      const r = doc.data();
-      const d = new Date(r.savedAt);
-      const dateStr = d.toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
-      const courseSummary = r.items.map(i => i.level + (i.monthLabel ? `(${i.monthLabel}개월)` : '')).join(', ');
-      return `
-        <div class="record-item">
-          <div class="info"><b>${escapeHtml(r.studentName)}</b><span>${dateStr}${r.savedBy ? ' · ' + escapeHtml(r.savedBy) : ''} · ${escapeHtml(courseSummary)}</span></div>
-          <div class="price">${formatPrice(r.final)}원</div>
-        </div>
-      `;
-    }).join('');
-  }catch(e){
-    console.error(e);
-    listEl.innerHTML = '<div class="selected-empty">불러오기 실패 — Firestore 규칙을 확인해주세요.</div>';
-  }
+document.getElementById('jpg-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('jpg-btn');
+  const originalText = btn.textContent;
+  btn.textContent = '저장 중…';
+  btn.disabled = true;
+  await exportAsJpg();
+  btn.textContent = originalText;
+  btn.disabled = false;
 });
 
 function autoResizeTextarea(el){
