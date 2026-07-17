@@ -35,6 +35,9 @@ body{margin:0;font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo',
 .topbar h1{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Pretendard',sans-serif;font-size:20px;font-weight:600;}
 .topbar .sub{font-size:12.5px;color:var(--ink-soft);margin-top:4px;}
 .mode-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.print-btn-wrap{position:relative;}
+.print-warning{display:none;position:absolute;top:100%;right:0;margin-top:5px;font-size:11px;color:var(--danger);white-space:nowrap;}
+.print-warning.show{display:block;}
 
 button{font-family:inherit;cursor:pointer;border:none;font-size:13.5px;}
 .btn{padding:9px 16px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);transition:all .15s ease;}
@@ -258,10 +261,13 @@ body.force-print-view .brand-logo{display:none !important;}
     </div>
     <div class="mode-controls">
       <input class="author-input edit-only" id="author-input" placeholder="작성자 이름" />
+      <input class="author-input edit-only" id="student-name" placeholder="수강생 이름" />
       <button class="btn" id="refresh-btn">새로고침</button>
       <button class="btn btn-accent on" id="mode-toggle">편집 모드</button>
-      <button class="btn" id="print-btn">인쇄 / PDF</button>
-      <button class="btn" id="jpg-btn">이미지 저장</button>
+      <div class="print-btn-wrap">
+        <button class="btn" id="print-btn">인쇄 / PDF</button>
+        <div class="print-warning" id="print-warning">※수강생 이름을 입력해주세요</div>
+      </div>
     </div>
   </div>
 
@@ -276,10 +282,6 @@ body.force-print-view .brand-logo{display:none !important;}
   <div class="calc-card">
     <h2 class="serif">수강료</h2>
     <div class="calc-card-sub edit-only">과정을 선택하면 위 카탈로그에 등록된 월 수강료가 자동으로 반영됩니다.</div>
-
-    <div class="student-name-field edit-only">
-      <label>수강생 이름<input id="student-name" placeholder="예: 홍길동"></label>
-    </div>
 
     <div class="course-picker edit-only">
       <select id="course-select"></select>
@@ -832,6 +834,7 @@ function preparePrintHeader(){
 }
 
 async function exportAsJpg(){
+  const scrollY = window.scrollY;
   preparePrintHeader();
   document.body.classList.add('force-print-view');
   await new Promise(resolve => setTimeout(resolve, 60));
@@ -853,29 +856,27 @@ async function exportAsJpg(){
     alert('이미지 저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
   }finally{
     document.body.classList.remove('force-print-view');
+    window.scrollTo(0, scrollY);
   }
 }
 
 document.getElementById('print-btn').addEventListener('click', async () => {
-  const btn = document.getElementById('print-btn');
-  const originalText = btn.textContent;
-  btn.textContent = '이미지 저장 중…';
-  btn.disabled = true;
-  await exportAsJpg();
-  btn.textContent = originalText;
-  btn.disabled = false;
+  const warningEl = document.getElementById('print-warning');
+  const nameInput = document.getElementById('student-name');
+
+  if(!nameInput || !nameInput.value.trim()){
+    warningEl.classList.add('show');
+    return;
+  }
+  warningEl.classList.remove('show');
+
   preparePrintHeader();
   window.print();
+  await exportAsJpg();
 });
 
-document.getElementById('jpg-btn').addEventListener('click', async () => {
-  const btn = document.getElementById('jpg-btn');
-  const originalText = btn.textContent;
-  btn.textContent = '저장 중…';
-  btn.disabled = true;
-  await exportAsJpg();
-  btn.textContent = originalText;
-  btn.disabled = false;
+document.getElementById('student-name').addEventListener('input', (e) => {
+  if(e.target.value.trim()) document.getElementById('print-warning').classList.remove('show');
 });
 
 function autoResizeTextarea(el){
