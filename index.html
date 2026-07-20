@@ -75,10 +75,14 @@ table.fee tr:last-child td{border-bottom:none;}
 .col-desc{width:34%;}
 .col-time{width:22%;}
 .col-price{width:20%;}
-.col-del{width:30px;}
+.col-del{width:56px;}
 
 .del-btn{width:26px;height:26px;border-radius:50%;background:transparent;color:var(--ink-soft);font-size:14px;display:flex;align-items:center;justify-content:center;}
 .del-btn:hover{background:var(--danger-bg);color:var(--danger);}
+.lock-row-btn{width:26px;height:26px;border-radius:50%;background:transparent;border:none;color:var(--ink-soft);font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}
+.lock-row-btn:hover{background:var(--brass-bg);color:var(--brass);}
+.unlock-row-btn{background:transparent;border:none;font-size:14px;cursor:pointer;padding:2px 6px;border-radius:5px;}
+.unlock-row-btn:hover{background:var(--brass-bg);}
 
 .add-row-btn{margin-top:14px;font-size:13px;color:var(--brass);background:var(--brass-bg);padding:8px 14px;border-radius:6px;border:1px dashed var(--brass);}
 .add-row-btn:hover{opacity:.85;}
@@ -86,6 +90,10 @@ table.fee tr:last-child td{border-bottom:none;}
 .view-name{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Pretendard',sans-serif;font-weight:600;font-size:15.5px;}
 .locked-row{background:rgba(0,0,0,0.02);}
 .locked-row .view-name{font-weight:500;color:var(--ink-soft);}
+.drag-handle{cursor:grab;margin-right:8px;color:var(--ink-soft);user-select:none;display:inline-block;}
+.drag-handle:active{cursor:grabbing;}
+.level-cell{display:flex;align-items:center;}
+table.fee tbody tr.drag-over{background:var(--brass-bg);outline:1px dashed var(--brass);}
 .view-desc,.view-time{color:var(--ink-soft);font-size:13px;}
 .view-price{font-variant-numeric:tabular-nums;font-weight:600;color:var(--brass);font-size:15px;}
 .view-price small{font-weight:400;font-size:11.5px;color:var(--ink-soft);margin-left:2px;}
@@ -142,6 +150,7 @@ table.fee tr:last-child td{border-bottom:none;}
 .breakdown-rate-note{text-transform:none;letter-spacing:0;font-size:11.5px;color:var(--ink-soft);}
 .breakdown-single{display:flex;gap:0;background:var(--brass-bg);border-radius:8px;padding:14px 18px;}
 .breakdown-item{flex:1;padding:0 14px;border-left:1px solid rgba(169,121,59,.25);}
+.breakdown-item #breakdown-unlock-btn{margin-top:2px;padding:4px 10px;font-size:12px;}
 .breakdown-item:first-child{border-left:none;padding-left:0;}
 .breakdown-item span{display:block;font-size:11px;color:var(--ink-soft);margin-bottom:4px;}
 .breakdown-item strong{font-size:16px;font-variant-numeric:tabular-nums;color:var(--ink);}
@@ -310,8 +319,6 @@ body.force-print-view .brand-logo{display:none !important;}
     <div class="calc-breakdown edit-only" id="calc-breakdown">
       <div class="calc-breakdown-title">강의료 비중 <span class="breakdown-rate-note">(과목별 산정 기준 적용)</span></div>
       <div class="breakdown-single">
-        <div class="breakdown-item"><span>할인 후 수강료</span><strong id="breakdown-total">-</strong></div>
-        <div class="breakdown-item"><span>실제 강의료</span><strong id="breakdown-actual">-</strong></div>
         <div class="breakdown-item highlight"><span>비중</span><strong id="breakdown-pct">-</strong></div>
       </div>
     </div>
@@ -388,7 +395,10 @@ const DEFAULT_DATA = {
       { id: cid(), level: '정규반', desc: '카메라 앞 진행, 상품 소개 실습', time: '주2회 90분', price: '', locked: true }
     ]},
     { id: 'compose', name: '작곡', rows: [
-      { id: cid(), level: '정규반', desc: '작곡 이론, 편곡 및 실습', time: '주2회 90분', price: '', locked: true }
+      { id: cid(), level: '작곡(미디)', desc: '작곡 이론, 편곡 및 실습', time: '주2회 90분', price: '', locked: true },
+      { id: cid(), level: '작곡(클래식)', desc: '클래식 작곡 이론 및 실습', time: '주2회 90분', price: '350000', locked: true },
+      { id: cid(), level: '피아노레슨(입시)', desc: '입시 대비 피아노 레슨', time: '주2회 60분', price: '420000', locked: true },
+      { id: cid(), level: '피아노레슨', desc: '취미·기초 피아노 레슨', time: '주2회 60분', price: '350000', locked: true }
     ]}
   ],
   calculator: { items: [], discountLabel: '', discountAmount: '', discountLabel2: '', discountAmount2: '' }
@@ -397,6 +407,7 @@ const DEFAULT_DATA = {
 let state = null;
 let editMode = true;
 let saveTimer = null;
+let dragSource = null;
 
 const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
@@ -554,11 +565,11 @@ function lockedRowHtml(catId, r){
   const price = formatPrice(r.price);
   return `
     <tr data-row="${r.id}" data-cat="${catId}" class="locked-row">
-      <td><div class="view-name">🔒 ${escapeHtml(r.level)}</div></td>
+      <td><div class="level-cell"><span class="drag-handle" draggable="true">⠿</span><div class="view-name">🔒 ${escapeHtml(r.level)}</div></div></td>
       <td><div class="view-desc">${escapeHtml(r.desc)}</div></td>
       <td><div class="view-time">${escapeHtml(r.time)}</div></td>
       <td><div class="view-price">${price ? price : '-'}${price ? '<small>원</small>' : ''}</div></td>
-      <td></td>
+      <td><button class="btn btn-sm unlock-row-btn" data-unlock="${r.id}" data-unlock-cat="${catId}">🔓</button></td>
     </tr>
   `;
 }
@@ -566,11 +577,14 @@ function lockedRowHtml(catId, r){
 function editRowHtml(catId, r){
   return `
     <tr data-row="${r.id}" data-cat="${catId}">
-      <td><input class="cell-input" data-field="level" value="${escapeAttr(r.level)}" placeholder="과정명"></td>
+      <td><span class="drag-handle" draggable="true">⠿</span><input class="cell-input" data-field="level" value="${escapeAttr(r.level)}" placeholder="과정명"></td>
       <td><input class="cell-input" data-field="desc" value="${escapeAttr(r.desc)}" placeholder="설명"></td>
       <td><input class="cell-input" data-field="time" value="${escapeAttr(r.time)}" placeholder="예: 주2회 60분"></td>
       <td><input class="cell-input price-input" data-field="price" value="${escapeAttr(formatPrice(r.price))}" placeholder="금액"></td>
-      <td><button class="del-btn" data-del="${r.id}" aria-label="삭제">✕</button></td>
+      <td>
+        <button class="lock-row-btn" data-lock="${r.id}" data-lock-cat="${catId}" aria-label="잠그기" title="잠그기">🔒</button>
+        <button class="del-btn" data-del="${r.id}" aria-label="삭제">✕</button>
+      </td>
     </tr>
   `;
 }
@@ -627,6 +641,75 @@ function attachCatalogEvents(){
       cat.rows.push({ id: cid(), level: '', desc: '', time: '', price: '', locked: false });
       render();
       const activeTab = document.querySelector(`.tab-btn[data-cat="${btn.dataset.add}"]`);
+      if(activeTab) activeTab.click();
+      scheduleSave();
+    });
+  });
+  const ROW_LOCK_PIN = '6589';
+  panelsEl.querySelectorAll('.unlock-row-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const input = window.prompt('잠금 해제 비밀번호를 입력하세요');
+      if(input === null) return;
+      if(input !== ROW_LOCK_PIN){
+        alert('비밀번호가 올바르지 않습니다.');
+        return;
+      }
+      const cat = state.categories.find(c => c.id === btn.dataset.unlockCat);
+      const row = cat.rows.find(r => r.id === btn.dataset.unlock);
+      if(row) row.locked = false;
+      render();
+      const activeTab = document.querySelector(`.tab-btn[data-cat="${btn.dataset.unlockCat}"]`);
+      if(activeTab) activeTab.click();
+      scheduleSave();
+    });
+  });
+  panelsEl.querySelectorAll('.lock-row-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cat = state.categories.find(c => c.id === btn.dataset.lockCat);
+      const row = cat.rows.find(r => r.id === btn.dataset.lock);
+      if(row) row.locked = true;
+      render();
+      const activeTab = document.querySelector(`.tab-btn[data-cat="${btn.dataset.lockCat}"]`);
+      if(activeTab) activeTab.click();
+      scheduleSave();
+    });
+  });
+
+  panelsEl.querySelectorAll('.drag-handle').forEach(handle => {
+    handle.addEventListener('dragstart', (e) => {
+      const tr = handle.closest('tr');
+      dragSource = { catId: tr.dataset.cat, rowId: tr.dataset.row };
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    handle.addEventListener('dragend', () => {
+      panelsEl.querySelectorAll('tr.drag-over').forEach(tr => tr.classList.remove('drag-over'));
+    });
+  });
+  panelsEl.querySelectorAll('table.fee tbody tr').forEach(tr => {
+    tr.addEventListener('dragover', (e) => {
+      if(!dragSource || dragSource.catId !== tr.dataset.cat) return;
+      e.preventDefault();
+      tr.classList.add('drag-over');
+    });
+    tr.addEventListener('dragleave', () => {
+      tr.classList.remove('drag-over');
+    });
+    tr.addEventListener('drop', (e) => {
+      e.preventDefault();
+      tr.classList.remove('drag-over');
+      if(!dragSource) return;
+      const targetCatId = tr.dataset.cat;
+      const targetRowId = tr.dataset.row;
+      if(dragSource.catId !== targetCatId){ dragSource = null; return; }
+      const cat = state.categories.find(c => c.id === targetCatId);
+      const fromIdx = cat.rows.findIndex(r => r.id === dragSource.rowId);
+      const toIdx = cat.rows.findIndex(r => r.id === targetRowId);
+      dragSource = null;
+      if(fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+      const [moved] = cat.rows.splice(fromIdx, 1);
+      cat.rows.splice(toIdx, 0, moved);
+      render();
+      const activeTab = document.querySelector(`.tab-btn[data-cat="${targetCatId}"]`);
       if(activeTab) activeTab.click();
       scheduleSave();
     });
@@ -749,8 +832,6 @@ function renderCalculator(){
     }
   });
   const pctOfTotal = hasCalc && final > 0 ? Math.round((actualFeeTotal / final) * 100) : 0;
-  document.getElementById('breakdown-total').textContent = hasCalc ? formatPrice(final) + '원' : '-';
-  document.getElementById('breakdown-actual').textContent = hasCalc ? formatPrice(actualFeeTotal) + '원' : '-';
   document.getElementById('breakdown-pct').textContent = hasCalc ? pctOfTotal + '%' : '-';
   const pctEl = document.getElementById('breakdown-pct');
   pctEl.classList.remove('pct-high', 'pct-low');
