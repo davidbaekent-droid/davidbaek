@@ -102,14 +102,17 @@ table.fee tbody tr.drag-over{background:var(--brass-bg);outline:1px dashed var(-
 .calc-card h2{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Pretendard',sans-serif;font-size:18px;margin-bottom:6px;}
 .calc-card-sub{font-size:12.5px;color:var(--ink-soft);margin-bottom:20px;}
 
-.course-picker{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
-.course-picker select{flex:1;min-width:220px;border:1px solid var(--line);border-radius:6px;padding:9px 10px;font-family:inherit;font-size:13.5px;background:#fff;color:#1E2129;}
+.course-picker{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
+.course-picker select{flex:1;min-width:180px;border:1px solid var(--line);border-radius:6px;padding:9px 10px;font-family:inherit;font-size:13.5px;background:#fff;color:#1E2129;}
+.course-picker-plus{color:var(--ink-soft);font-size:14px;flex-shrink:0;}
 
 .selected-list{display:flex;flex-direction:column;gap:8px;margin-bottom:8px;}
 .selected-empty{font-size:13px;color:var(--ink-soft);padding:10px 0;}
 .selected-item{display:flex;align-items:center;justify-content:space-between;background:var(--brass-bg);border-radius:6px;padding:9px 12px;font-size:13.5px;}
-.selected-item .info b{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Pretendard',sans-serif;}
-.selected-item .info span{color:var(--ink-soft);font-size:12px;margin-left:8px;}
+.selected-item .info{display:flex;align-items:baseline;flex:1;min-width:0;}
+.selected-item .info b{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Pretendard',sans-serif;display:inline-block;min-width:150px;flex-shrink:0;}
+.selected-item .info .month-tag-slot{display:inline-block;min-width:64px;margin-right:10px;flex-shrink:0;}
+.selected-item .info .subtitle{color:var(--ink-soft);font-size:12px;}
 .selected-item .price{font-variant-numeric:tabular-nums;font-weight:600;color:var(--brass);margin-right:0;}
 .price-strike{font-weight:400;color:var(--ink-soft);text-decoration:line-through;margin-right:2px;}
 .month-tag{display:inline-block;font-size:10.5px;font-weight:600;color:var(--brass);background:var(--brass-bg);padding:1px 7px;border-radius:8px;margin-left:6px;vertical-align:middle;}
@@ -294,6 +297,10 @@ body.force-print-view .brand-logo{display:none !important;}
 
     <div class="course-picker edit-only">
       <select id="course-select"></select>
+      <span class="course-picker-plus">+</span>
+      <select id="course-select-2"></select>
+      <span class="course-picker-plus">+</span>
+      <select id="course-select-3"></select>
       <button class="btn btn-sm" id="course-add-btn">+ 과목 추가</button>
     </div>
 
@@ -418,6 +425,8 @@ const notesInput = document.getElementById('notes-input');
 const modeToggle = document.getElementById('mode-toggle');
 const appWrap = document.getElementById('app-wrap');
 const courseSelect = document.getElementById('course-select');
+const courseSelect2 = document.getElementById('course-select-2');
+const courseSelect3 = document.getElementById('course-select-3');
 const selectedListEl = document.getElementById('selected-list');
 
 function setStatus(text, saving){
@@ -721,11 +730,13 @@ function renderCourseOptions(){
   state.categories.forEach(cat => {
     cat.rows.forEach(r => {
       if(!r.level) return;
-      const priceLabel = r.price ? formatPrice(r.price) + '원' : '가격 미입력';
-      options.push(`<option value="${r.id}">${escapeHtml(cat.name)} · ${escapeHtml(r.level)} (${priceLabel})</option>`);
+      options.push(`<option value="${r.id}">${escapeHtml(cat.name)} · ${escapeHtml(r.level)}</option>`);
     });
   });
   courseSelect.innerHTML = options.join('');
+  const options2 = ['<option value="">(혼합 안 함)</option>', ...options.slice(1)];
+  courseSelect2.innerHTML = options2.join('');
+  courseSelect3.innerHTML = options2.join('');
 }
 
 function getCalculatorSnapshot(){
@@ -754,7 +765,7 @@ function getCalculatorSnapshot(){
   items.forEach(entry => {
     const cId = entry.item.courseId;
     courseSeen[cId] = (courseSeen[cId] || 0) + 1;
-    entry.monthLabel = courseTotals[cId] > 1 ? courseSeen[cId] : null;
+    entry.monthLabel = courseSeen[cId];
   });
 
   // 할인 금액을 목록 맨 아래(가장 마지막에 추가한 과정)부터 원수강료에서 차감
@@ -779,7 +790,7 @@ function renderCalculator(){
   }else{
     selectedListEl.innerHTML = items.map(({item, row, cat, originalPrice, adjustedPrice, deducted, monthLabel}) => `
       <div class="selected-item">
-        <div class="info"><b>${escapeHtml(row.level)}${monthLabel ? ` <span class="month-tag">${monthLabel}개월</span>` : ''}</b><span>${escapeHtml(cat.name)}${row.time ? ' · ' + escapeHtml(row.time) : ''}</span></div>
+        <div class="info"><b>${escapeHtml(row.level)}</b><span class="month-tag-slot">${monthLabel ? `<span class="month-tag">${monthLabel}개월</span>` : ''}</span><span class="subtitle">${escapeHtml(cat.name)}${row.time ? ' · ' + escapeHtml(row.time) : ''}</span></div>
         <div style="display:flex;align-items:center;gap:10px;">
           <span class="price">${
             row.price
@@ -853,9 +864,13 @@ function panelsAttachCalcRemoveEvents(){
 }
 
 document.getElementById('course-add-btn').addEventListener('click', () => {
-  const id = courseSelect.value;
-  if(!id) return;
-  state.calculator.items.push({ instanceId: cid(), courseId: id });
+  const id1 = courseSelect.value;
+  const id2 = courseSelect2.value;
+  const id3 = courseSelect3.value;
+  if(!id1 && !id2 && !id3) return;
+  if(id1) state.calculator.items.push({ instanceId: cid(), courseId: id1 });
+  if(id2) state.calculator.items.push({ instanceId: cid(), courseId: id2 });
+  if(id3) state.calculator.items.push({ instanceId: cid(), courseId: id3 });
   renderCalculator();
   scheduleSave();
 });
