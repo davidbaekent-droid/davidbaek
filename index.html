@@ -809,9 +809,8 @@ function renderCalculator(){
   if(document.activeElement !== rateInput2) rateInput2.value = rate2 !== null ? rate2 : '';
 
   const DEFAULT_RATE_PER_60MIN = 120000;
-  const ACTING_GROUP_LEVELS = ['입문', '기초', '중급', '고급', '전문', '예고입시', '연기종합'];
   function getFeeRule(cat, row){
-    if(cat.name === '연기' && ACTING_GROUP_LEVELS.includes(row.level)){
+    if(cat.name === '연기' && !String(row.level || '').includes('레슨')){
       return { rate: DEFAULT_RATE_PER_60MIN, divisor: 6 };
     }
     if(cat.name === '라이브커머스'){
