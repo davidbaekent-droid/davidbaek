@@ -108,12 +108,11 @@ table.fee tbody tr.drag-over{background:var(--brass-bg);outline:1px dashed var(-
 
 .selected-list{display:flex;flex-direction:column;gap:8px;margin-bottom:8px;}
 .selected-empty{font-size:13px;color:var(--ink-soft);padding:10px 0;}
-.selected-item{display:flex;align-items:center;justify-content:space-between;background:var(--brass-bg);border-radius:6px;padding:9px 12px;font-size:13.5px;}
-.selected-item .info{display:flex;align-items:baseline;flex:1;min-width:0;}
-.selected-item .info b{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Pretendard',sans-serif;display:inline-block;min-width:150px;flex-shrink:0;}
-.selected-item .info .month-tag-slot{display:inline-block;min-width:64px;margin-right:10px;flex-shrink:0;}
-.selected-item .info .subtitle{color:var(--ink-soft);font-size:12px;}
-.selected-item .price{font-variant-numeric:tabular-nums;font-weight:600;color:var(--brass);margin-right:0;}
+.selected-item{display:grid;grid-template-columns:minmax(90px,0.9fr) 58px minmax(0,2.4fr) 108px 24px;align-items:center;gap:10px;background:var(--brass-bg);border-radius:6px;padding:12px 14px;font-size:13px;min-height:22px;}
+.selected-item .col-course{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Pretendard',sans-serif;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.selected-item .col-month{display:flex;align-items:center;}
+.selected-item .col-desc{font-size:11.5px;color:var(--ink-soft);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.selected-item .col-price{font-variant-numeric:tabular-nums;font-weight:600;color:var(--brass);text-align:right;white-space:nowrap;font-size:13px;}
 .price-strike{font-weight:400;color:var(--ink-soft);text-decoration:line-through;margin-right:2px;}
 .month-tag{display:inline-block;font-size:10.5px;font-weight:600;color:var(--brass);background:var(--brass-bg);padding:1px 7px;border-radius:8px;margin-left:6px;vertical-align:middle;}
 .qty-control{display:flex;align-items:center;gap:6px;}
@@ -129,7 +128,7 @@ table.fee tbody tr.drag-over{background:var(--brass-bg);outline:1px dashed var(-
 .calc-grid label{font-size:11.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;}
 .calc-grid input{border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-family:inherit;font-size:13.5px;background:#fff;color:#1E2129;}
 .calc-grid input[readonly]{background:var(--brass-bg);color:var(--brass);font-weight:600;}
-.discount-grid{grid-template-columns:2fr 1fr 1fr;}
+.discount-grid{grid-template-columns:1.6fr 0.8fr 0.9fr 1fr;}
 .discount-grid label.wide{grid-column:span 1;}
 .student-name-field{margin-bottom:16px;}
 .student-name-field label{font-size:11.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;max-width:280px;}
@@ -248,6 +247,12 @@ body.force-print-view .brand-logo{display:none !important;}
   table.fee td{border-bottom:none;padding:4px 0;}
   table.fee td:last-child{text-align:left;}
   .calc-grid{grid-template-columns:1fr;}
+  .selected-item{grid-template-columns:1fr auto;grid-template-areas:"course remove" "month remove" "desc remove" "price remove";row-gap:4px;column-gap:10px;}
+  .selected-item .col-course{grid-area:course;}
+  .selected-item .col-month{grid-area:month;}
+  .selected-item .col-desc{grid-area:desc;}
+  .selected-item .col-price{grid-area:price;text-align:left;}
+  .selected-item .remove-btn{grid-area:remove;align-self:center;}
   .calc-summary .stat{border-left:none;padding-left:0;border-top:1px solid var(--line);padding-top:10px;margin-top:10px;}
   .calc-summary .stat:first-child{border-top:none;margin-top:0;padding-top:0;}
 }
@@ -310,11 +315,13 @@ body.force-print-view .brand-logo{display:none !important;}
       <label class="edit-only wide">프로모션 · 할인명 1<input id="calc-discount-label" placeholder="예: 정규과정 지원"></label>
       <label class="edit-only">할인율(%)<input id="calc-discount-rate" placeholder="예: 20"></label>
       <label class="edit-only">할인 금액(원)<input id="calc-discount-amount" placeholder="예: 1200000"></label>
+      <label class="edit-only">이벤트 기간(선택)<input id="calc-discount-period" placeholder="예: 8/1~8/31"></label>
     </div>
     <div class="calc-grid discount-grid">
       <label class="edit-only wide">프로모션 · 할인명 2<input id="calc-discount-label2" placeholder="예: 형제·자매 할인"></label>
       <label class="edit-only">할인율(%) · 1차 할인 후 기준<input id="calc-discount-rate2" placeholder="예: 5"></label>
       <label class="edit-only">할인 금액(원)<input id="calc-discount-amount2" placeholder="예: 200000"></label>
+      <label class="edit-only">이벤트 기간(선택)<input id="calc-discount-period2" placeholder="예: 8/1~8/31"></label>
     </div>
 
     <div class="calc-summary">
@@ -408,7 +415,7 @@ const DEFAULT_DATA = {
       { id: cid(), level: '피아노레슨', desc: '취미·기초 피아노 레슨', time: '주2회 60분', price: '350000', locked: true }
     ]}
   ],
-  calculator: { items: [], discountLabel: '', discountAmount: '', discountLabel2: '', discountAmount2: '' }
+  calculator: { items: [], discountLabel: '', discountAmount: '', discountPeriod: '', discountLabel2: '', discountAmount2: '', discountPeriod2: '' }
 };
 
 let state = null;
@@ -444,9 +451,11 @@ async function loadData(){
         if(!r.id) r.id = cid();
         if(r.locked === undefined) r.locked = true;
       }));
-      if(!state.calculator) state.calculator = { items: [], discountLabel: '', discountAmount: '', discountLabel2: '', discountAmount2: '' };
+      if(!state.calculator) state.calculator = { items: [], discountLabel: '', discountAmount: '', discountPeriod: '', discountLabel2: '', discountAmount2: '', discountPeriod2: '' };
       if(state.calculator.discountLabel2 === undefined) state.calculator.discountLabel2 = '';
       if(state.calculator.discountAmount2 === undefined) state.calculator.discountAmount2 = '';
+      if(state.calculator.discountPeriod === undefined) state.calculator.discountPeriod = '';
+      if(state.calculator.discountPeriod2 === undefined) state.calculator.discountPeriod2 = '';
       if(!state.calculator.items){
         const legacyIds = state.calculator.courseIds || [];
         state.calculator.items = legacyIds.map(courseId => ({ instanceId: cid(), courseId }));
@@ -477,6 +486,8 @@ async function loadData(){
   document.getElementById('calc-discount-amount').value = state.calculator.discountAmount || '';
   document.getElementById('calc-discount-label2').value = state.calculator.discountLabel2 || '';
   document.getElementById('calc-discount-amount2').value = state.calculator.discountAmount2 || '';
+  document.getElementById('calc-discount-period').value = state.calculator.discountPeriod || '';
+  document.getElementById('calc-discount-period2').value = state.calculator.discountPeriod2 || '';
   render();
   updateStatusFromState();
 }
@@ -790,17 +801,17 @@ function renderCalculator(){
   }else{
     selectedListEl.innerHTML = items.map(({item, row, cat, originalPrice, adjustedPrice, deducted, monthLabel}) => `
       <div class="selected-item">
-        <div class="info"><b>${escapeHtml(row.level)}</b><span class="month-tag-slot">${monthLabel ? `<span class="month-tag">${monthLabel}개월</span>` : ''}</span><span class="subtitle">${escapeHtml(cat.name)}${row.time ? ' · ' + escapeHtml(row.time) : ''}</span></div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span class="price">${
+        <div class="col-course" title="${escapeAttr(row.level)}">${escapeHtml(row.level)}</div>
+        <div class="col-month">${monthLabel ? `<span class="month-tag">${monthLabel}개월</span>` : ''}</div>
+        <div class="col-desc" title="${escapeAttr(row.desc || '')}">${row.desc ? escapeHtml(row.desc) : ''}</div>
+        <div class="col-price">${
             row.price
               ? (deducted > 0
                   ? `<s class="price-strike">${formatPrice(originalPrice)}원</s> ${formatPrice(adjustedPrice)}원/월`
                   : formatPrice(originalPrice) + '원/월')
               : '가격 미입력'
-          }</span>
-          <button class="remove-btn edit-only" data-remove-course="${item.instanceId}" aria-label="제거">✕</button>
-        </div>
+          }</div>
+        <button class="remove-btn edit-only" data-remove-course="${item.instanceId}" aria-label="제거">✕</button>
       </div>
     `).join('');
   }
@@ -811,8 +822,8 @@ function renderCalculator(){
   document.getElementById('calc-discount').textContent = hasCalc && discount ? '-' + formatPrice(discount) + '원' : '-';
   document.getElementById('calc-final').textContent = hasCalc ? formatPrice(final) + '원' : '-';
   const labels = [];
-  if(state.calculator.discountLabel) labels.push(state.calculator.discountLabel + (rate1 !== null ? `(${rate1}%)` : ''));
-  if(state.calculator.discountLabel2) labels.push(state.calculator.discountLabel2 + (rate2 !== null ? `(${rate2}%)` : ''));
+  if(state.calculator.discountLabel) labels.push(state.calculator.discountLabel + (rate1 !== null ? `(${rate1}%)` : '') + (state.calculator.discountPeriod ? ` [${state.calculator.discountPeriod}]` : ''));
+  if(state.calculator.discountLabel2) labels.push(state.calculator.discountLabel2 + (rate2 !== null ? `(${rate2}%)` : '') + (state.calculator.discountPeriod2 ? ` [${state.calculator.discountPeriod2}]` : ''));
   document.getElementById('calc-discount-label-out').textContent = '할인' + (labels.length ? ' · ' + labels.join(' + ') : '');
   const rateInput1 = document.getElementById('calc-discount-rate');
   const rateInput2 = document.getElementById('calc-discount-rate2');
@@ -892,6 +903,17 @@ document.getElementById('calc-discount-label2').addEventListener('input', (e) =>
 });
 document.getElementById('calc-discount-amount2').addEventListener('input', (e) => {
   state.calculator.discountAmount2 = e.target.value;
+  renderCalculator();
+  scheduleSave();
+});
+
+document.getElementById('calc-discount-period').addEventListener('input', (e) => {
+  state.calculator.discountPeriod = e.target.value;
+  renderCalculator();
+  scheduleSave();
+});
+document.getElementById('calc-discount-period2').addEventListener('input', (e) => {
+  state.calculator.discountPeriod2 = e.target.value;
   renderCalculator();
   scheduleSave();
 });
