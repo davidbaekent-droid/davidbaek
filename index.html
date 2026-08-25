@@ -282,6 +282,7 @@ body.force-print-view .col-desc{font-size:9.5px !important;}
       <input class="author-input edit-only" id="author-input" placeholder="작성자 이름" />
       <input class="author-input edit-only" id="student-name" placeholder="수강생 이름" />
       <button class="btn" id="refresh-btn">새로고침</button>
+      <button class="btn btn-accent on" id="save-btn">저장</button>
       <button class="btn btn-accent on" id="mode-toggle">편집 모드</button>
       <div class="print-btn-wrap">
         <button class="btn" id="print-btn">인쇄 / PDF</button>
@@ -1027,6 +1028,17 @@ notesInput.addEventListener('input', () => {
 
 document.getElementById('refresh-btn').addEventListener('click', () => {
   loadData();
+});
+
+document.getElementById('save-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('save-btn');
+  const originalText = btn.textContent;
+  btn.textContent = '저장 중…';
+  btn.disabled = true;
+  clearTimeout(saveTimer);
+  await persist(true);
+  btn.textContent = originalText;
+  btn.disabled = false;
 });
 
 firebase.auth().onAuthStateChanged(user => {
