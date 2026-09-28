@@ -843,6 +843,9 @@ function renderCalculator(){
     if(cat.name === '연기' && !String(row.level || '').includes('레슨')){
       return { rate: DEFAULT_RATE_PER_60MIN, divisor: 6 };
     }
+    if(cat.name === '라이브커머스' && String(row.level || '').includes('쇼호스트')){
+      return { rate: 400000, divisor: 1 };
+    }
     if(cat.name === '라이브커머스'){
       return { rate: 200000, divisor: 1 };
     }
