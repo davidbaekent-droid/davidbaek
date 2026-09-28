@@ -151,6 +151,7 @@ table.fee tbody tr.drag-over{background:var(--brass-bg);outline:1px dashed var(-
 
 .calc-breakdown{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);}
 .calc-breakdown-title{font-size:12px;letter-spacing:.05em;color:var(--ink-soft);text-transform:uppercase;margin-bottom:10px;}
+.breakdown-time-warning{margin-top:8px;font-size:11.5px;color:var(--danger);line-height:1.5;}
 .breakdown-rate-note{text-transform:none;letter-spacing:0;font-size:11.5px;color:var(--ink-soft);}
 .breakdown-single{display:flex;gap:0;background:var(--brass-bg);border-radius:8px;padding:14px 18px;}
 .breakdown-item{flex:1;padding:0 14px;border-left:1px solid rgba(169,121,59,.25);}
@@ -340,6 +341,7 @@ body.force-print-view .col-desc{font-size:9.5px !important;}
       <div class="breakdown-single">
         <div class="breakdown-item highlight"><span>비중</span><strong id="breakdown-pct">-</strong></div>
       </div>
+      <div class="breakdown-time-warning" id="breakdown-time-warning" style="display:none;"></div>
     </div>
     <div class="print-save-hint edit-only" id="print-save-hint">인쇄/PDF 또는 이미지 저장 버튼을 누르면 이 계산 내용이 담긴 결과가 만들어집니다.</div>
   </div>
@@ -411,7 +413,8 @@ const DEFAULT_DATA = {
       { id: cid(), level: '그룹', desc: '2~4인 그룹 레슨', time: '주1회 60분', price: '', locked: true }
     ]},
     { id: 'live', name: '라이브커머스', rows: [
-      { id: cid(), level: '정규반', desc: '카메라 앞 진행, 상품 소개 실습', time: '주2회 90분', price: '', locked: true }
+      { id: cid(), level: '정규반', desc: '카메라 앞 진행, 상품 소개 실습', time: '주2회 90분', price: '2200000', locked: true },
+      { id: cid(), level: '쇼호스트 과정', desc: '쇼호스트 실전 트레이닝', time: '주2회 90분', price: '3500000', locked: true }
     ]},
     { id: 'compose', name: '작곡', rows: [
       { id: cid(), level: '작곡(미디)', desc: '작곡 이론, 편곡 및 실습', time: '주2회 90분', price: '', locked: true },
@@ -849,14 +852,26 @@ function renderCalculator(){
     return { rate: DEFAULT_RATE_PER_60MIN, divisor: 1 };
   }
   let actualFeeTotal = 0;
+  const missingTimeNames = [];
   items.forEach(({row, cat}) => {
     const m = String(row.time || '').match(/(\d+)\s*분/);
     if(m){
       const minutes = parseInt(m[1], 10);
       const { rate, divisor } = getFeeRule(cat, row);
       actualFeeTotal += Math.round(((minutes / 60) * rate) / divisor);
+    }else{
+      const name = row.level || '(이름 없음)';
+      if(!missingTimeNames.includes(name)) missingTimeNames.push(name);
     }
   });
+  const timeWarnEl = document.getElementById('breakdown-time-warning');
+  if(missingTimeNames.length > 0){
+    timeWarnEl.textContent = '※시간 확인 필요: ' + missingTimeNames.join(', ') + ' (시간 칸에 "○○분"이 없어 비중에 반영되지 않았습니다)';
+    timeWarnEl.style.display = 'block';
+  }else{
+    timeWarnEl.textContent = '';
+    timeWarnEl.style.display = 'none';
+  }
   const pctOfTotal = hasCalc && final > 0 ? Math.round((actualFeeTotal / final) * 100) : 0;
   document.getElementById('breakdown-pct').textContent = hasCalc ? pctOfTotal + '%' : '-';
   const pctEl = document.getElementById('breakdown-pct');
