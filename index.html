@@ -336,6 +336,12 @@ body.force-print-view .col-desc{font-size:9.5px !important;}
       <div class="stat"><span id="calc-discount-label-out">할인</span><strong class="neg" id="calc-discount">-</strong></div>
       <div class="stat highlight"><span>할인 후 수강료</span><strong id="calc-final">-</strong></div>
     </div>
+    <div class="calc-breakdown edit-only" id="calc-avg-box">
+      <div class="calc-breakdown-title">과목당 평균 수강료 <span class="breakdown-rate-note">(할인 후 수강료 ÷ 등록 과목 수, 소수점 제외)</span></div>
+      <div class="breakdown-single">
+        <div class="breakdown-item highlight"><span>평균</span><strong id="avg-per-course">-</strong></div>
+      </div>
+    </div>
     <div class="calc-breakdown edit-only" id="calc-breakdown">
       <div class="calc-breakdown-title">강의료 비중 <span class="breakdown-rate-note">(과목별 산정 기준 적용)</span></div>
       <div class="breakdown-single">
@@ -876,6 +882,7 @@ function renderCalculator(){
     timeWarnEl.style.display = 'none';
   }
   const pctOfTotal = hasCalc && final > 0 ? Math.round((actualFeeTotal / final) * 100) : 0;
+  document.getElementById('avg-per-course').textContent = hasCalc ? formatPrice(Math.floor(final / items.length)) + '원' : '-';
   document.getElementById('breakdown-pct').textContent = hasCalc ? pctOfTotal + '%' : '-';
   const pctEl = document.getElementById('breakdown-pct');
   pctEl.classList.remove('pct-high', 'pct-low');
