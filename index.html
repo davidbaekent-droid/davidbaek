@@ -130,6 +130,10 @@ table.fee tbody tr.drag-over{background:var(--brass-bg);outline:1px dashed var(-
 .calc-grid label{font-size:11.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;}
 .calc-grid input{border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-family:inherit;font-size:13.5px;background:#fff;color:#1E2129;}
 .calc-grid input[readonly]{background:var(--brass-bg);color:var(--brass);font-weight:600;}
+.discount-hint{margin:-4px 0 12px;padding:9px 12px;border-radius:8px;background:var(--brass-bg);font-size:12px;line-height:1.55;color:var(--ink-soft);}
+.discount-hint b{color:var(--ink);}
+.discount-hint .hint-btn{margin-left:6px;padding:2px 8px;font-size:11.5px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);cursor:pointer;}
+.discount-hint .hint-warn{color:var(--danger);}
 .discount-grid{grid-template-columns:1.6fr 0.8fr 0.9fr 1fr;}
 .discount-grid label.wide{grid-column:span 1;}
 .student-name-field{margin-bottom:16px;}
@@ -323,6 +327,7 @@ body.force-print-view .col-desc{font-size:9.5px !important;}
       <label class="edit-only">할인 금액(원)<input id="calc-discount-amount" placeholder="예: 1200000"></label>
       <label class="edit-only">이벤트 기간(선택)<input id="calc-discount-period" placeholder="예: 8/1~8/31"></label>
     </div>
+    <div class="discount-hint edit-only" id="discount-hint" style="display:none;"></div>
     <div class="calc-grid discount-grid">
       <label class="edit-only wide">프로모션 · 할인명 2<input id="calc-discount-label2" placeholder="예: 형제·자매 할인"></label>
       <label class="edit-only">할인율(%) · 1차 할인 후 기준<input id="calc-discount-rate2" placeholder="예: 5"></label>
@@ -455,6 +460,63 @@ function setStatus(text, saving){
   statusDot.classList.toggle('saving', !!saving);
 }
 
+// 예약 가격 변경: date(해당 날짜 0시) 이후 처음 접속 시 1회만 적용되어 저장됨
+const PRICE_SCHEDULE = [
+  { id: 'vocal-2026-11-01', date: '2026-11-01', category: '보컬', changes: [
+    { level: '취미', price: '380000' },
+    { level: '전문', price: '480000' },
+    { level: '입시', price: '580000' }
+  ]},
+  { id: 'acting-2027-01-01', date: '2027-01-01', category: '연기', apply: (cat) => {
+    const general = ['입문','기초','중급','고급','전문'];
+    const mk = (level, price) => ({ id: cid(), level, desc: '', time: '', price, locked: true });
+    // 일반과정: 주1회 150분, 450,000원
+    general.forEach(lv => {
+      const row = cat.rows.find(r => r.level === lv);
+      if(row){ row.time = '주1회 150분'; row.price = '450000'; }
+    });
+    // 주2회 과정 삭제 (일반과정·레슨·입시과정 제외)
+    cat.rows = cat.rows.filter(r => general.includes(r.level) || String(r.level || '').includes('레슨') || ['예고입시','예비입시','예대입시','예대입시(고3)'].includes(r.level) || !String(r.time || '').includes('주2회'));
+    // 레슨 (기존 '개인레슨' 행이 있으면 과정명을 '레슨'으로, 설명을 '개인레슨'으로)
+    let lesson = cat.rows.find(r => r.level === '레슨') || cat.rows.find(r => r.level === '개인레슨');
+    if(!lesson){ lesson = mk('레슨', ''); cat.rows.push(lesson); }
+    lesson.level = '레슨'; lesson.desc = '개인레슨'; lesson.price = '520000'; lesson.time = '주1회 60분';
+    // 입시 과정
+    const goko = cat.rows.find(r => r.level === '예고입시');
+    if(goko) goko.price = '700000'; else cat.rows.push(mk('예고입시', '700000'));
+    // 예비입시·예대입시: 기존 행이 있으면 수정, 없으면 추가
+    const pre = cat.rows.find(r => r.level === '예비입시') || (cat.rows.push(mk('예비입시', '')), cat.rows[cat.rows.length - 1]);
+    pre.price = '800000'; pre.desc = '고등학생 대상 예비입시반'; pre.time = '주3회 480분';
+    const old = cat.rows.find(r => r.level === '예대입시(고3)');
+    if(old) old.level = '예대입시';
+    const univ = cat.rows.find(r => r.level === '예대입시') || (cat.rows.push(mk('예대입시', '')), cat.rows[cat.rows.length - 1]);
+    univ.price = '950000'; univ.desc = '올해 수험생 대상'; univ.time = '주3회 480분';
+  }}
+];
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function applyPriceSchedule(){
+  if(!Array.isArray(state.appliedSchedules)) state.appliedSchedules = [];
+  const today = todayStr();
+  let changed = false;
+  PRICE_SCHEDULE.forEach(sch => {
+    if(today < sch.date || state.appliedSchedules.includes(sch.id)) return;
+    const cat = state.categories.find(c => c.name === sch.category);
+    if(cat){
+      if(sch.apply) sch.apply(cat);
+      (sch.changes || []).forEach(ch => {
+        const row = cat.rows.find(r => r.level === ch.level);
+        if(row) row.price = ch.price;
+      });
+    }
+    state.appliedSchedules.push(sch.id);
+    changed = true;
+  });
+  return changed;
+}
+
 async function loadData(){
   setStatus('불러오는 중…', true);
   try{
@@ -469,6 +531,7 @@ async function loadData(){
       if(state.calculator.discountLabel2 === undefined) state.calculator.discountLabel2 = '';
       if(state.calculator.discountAmount2 === undefined) state.calculator.discountAmount2 = '';
       if(state.calculator.discountPeriod === undefined) state.calculator.discountPeriod = '';
+      if(state.calculator.discountManual === undefined) state.calculator.discountManual = !!String(state.calculator.discountAmount || '').trim();
       if(state.calculator.discountPeriod2 === undefined) state.calculator.discountPeriod2 = '';
       if(!state.calculator.items){
         const legacyIds = state.calculator.courseIds || [];
@@ -481,6 +544,7 @@ async function loadData(){
         for(let i = 0; i < qty; i++) expanded.push({ instanceId: i === 0 ? item.instanceId : cid(), courseId: item.courseId });
       });
       state.calculator.items = expanded;
+      if(applyPriceSchedule()) await persist(false);
     }else{
       state = DEFAULT_DATA;
       await persist(false);
@@ -807,7 +871,71 @@ function getCalculatorSnapshot(){
   return { items, total, discount1, discount2, discount, final, rate1, rate2, afterDiscount1 };
 }
 
+// 수강 개월 수(같은 과정 등록 횟수) 기준 권장 할인율 — 수강료 할인율표(엑셀) 기준
+const MONTH_DISCOUNT = [[12, 0.15], [6, 0.10], [3, 0.06], [2, 0.03]];
+const AUTO_DISCOUNT_LABEL = '개월 수 할인';
+function monthDiscountRate(cat, row, months){
+  const eligible = cat.name === '연기' || cat.name === '보컬' || (cat.name === '작곡' && row.level === '작곡(미디)');
+  if(!eligible) return 0;
+  for(const [m, r] of MONTH_DISCOUNT) if(months >= m) return r;
+  return 0;
+}
+function getRecommendedDiscount(){
+  const counts = {};
+  const order = [];
+  state.calculator.items.forEach(it => {
+    if(!counts[it.courseId]){ counts[it.courseId] = 0; order.push(it.courseId); }
+    counts[it.courseId]++;
+  });
+  const parts = [];
+  const warnings = [];
+  let amount = 0;
+  order.forEach(id => {
+    const found = findRowById(id);
+    if(!found) return;
+    const n = counts[id];
+    if(found.cat.name === '보컬' && n > 6) warnings.push(found.row.level + ' 보컬은 최대 6개월까지 등록 가능');
+    const price = parseFloat(String(found.row.price).replace(/[^0-9.]/g,'')) || 0;
+    const rate = monthDiscountRate(found.cat, found.row, n);
+    if(rate > 0 && price > 0){
+      const amt = Math.round(price * n * rate);
+      amount += amt;
+      parts.push({ name: found.cat.name + ' ' + found.row.level, n, rate, amt });
+    }
+  });
+  return { amount, parts, warnings };
+}
+function syncAutoDiscount(){
+  const calc = state.calculator;
+  const rec = getRecommendedDiscount();
+  if(!calc.discountManual){
+    const next = rec.amount > 0 ? String(rec.amount) : '';
+    calc.discountAmount = next;
+    if(next && !calc.discountLabel) calc.discountLabel = AUTO_DISCOUNT_LABEL;
+    if(!next && calc.discountLabel === AUTO_DISCOUNT_LABEL) calc.discountLabel = '';
+    const amtEl = document.getElementById('calc-discount-amount');
+    const labelEl = document.getElementById('calc-discount-label');
+    if(document.activeElement !== amtEl) amtEl.value = calc.discountAmount;
+    if(document.activeElement !== labelEl) labelEl.value = calc.discountLabel || '';
+  }
+  const hint = document.getElementById('discount-hint');
+  const warn = rec.warnings.map(w => `<div class="hint-warn">⚠ ${escapeHtml(w)}</div>`).join('');
+  if(rec.amount > 0){
+    const detail = rec.parts.map(pt => `${escapeHtml(pt.name)} ${pt.n}개월 ${Math.round(pt.rate*100)}% (-${formatPrice(pt.amt)}원)`).join(' · ');
+    hint.innerHTML = calc.discountManual
+      ? `✏️ 수동 입력 중 · 권장 할인 <b>${formatPrice(rec.amount)}원</b> <button type="button" class="hint-btn" id="apply-rec-discount">권장값으로 되돌리기</button><br>${detail}${warn}`
+      : `💡 <b>권장 할인 자동 적용 중</b> (수강 개월 수 기준) — ${detail}<br>할인 금액·할인율을 직접 입력하면 수동으로 변경됩니다.${warn}`;
+    hint.style.display = '';
+  }else if(warn){
+    hint.innerHTML = warn;
+    hint.style.display = '';
+  }else{
+    hint.style.display = 'none';
+  }
+}
+
 function renderCalculator(){
+  syncAutoDiscount();
   const { items, total, discount1, discount2, discount, final, rate1, rate2 } = getCalculatorSnapshot();
 
   if(items.length === 0){
@@ -923,6 +1051,7 @@ document.getElementById('calc-discount-label').addEventListener('input', (e) => 
 });
 document.getElementById('calc-discount-amount').addEventListener('input', (e) => {
   state.calculator.discountAmount = e.target.value;
+  state.calculator.discountManual = e.target.value.trim() !== '';
   renderCalculator();
   scheduleSave();
 });
@@ -959,12 +1088,20 @@ function bindRateInput(rateId, amountKey, amountFieldId, getBase){
       state.calculator[amountKey] = base > 0 && !isNaN(rateVal) ? String(Math.round(base * rateVal / 100)) : '';
     }
     document.getElementById(amountFieldId).value = state.calculator[amountKey];
+    if(amountKey === 'discountAmount') state.calculator.discountManual = state.calculator.discountAmount !== '';
     renderCalculator();
     scheduleSave();
   });
 }
 bindRateInput('calc-discount-rate', 'discountAmount', 'calc-discount-amount', () => getCalculatorSnapshot().total);
 bindRateInput('calc-discount-rate2', 'discountAmount2', 'calc-discount-amount2', () => getCalculatorSnapshot().afterDiscount1);
+
+document.getElementById('discount-hint').addEventListener('click', (e) => {
+  if(e.target.id !== 'apply-rec-discount') return;
+  state.calculator.discountManual = false;
+  renderCalculator();
+  scheduleSave();
+});
 
 modeToggle.addEventListener('click', () => {
   editMode = !editMode;
