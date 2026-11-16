@@ -77,14 +77,12 @@ table.fee tr:last-child td{border-bottom:none;}
 .col-desc{width:34%;}
 .col-time{width:22%;}
 .col-price{width:20%;}
-.col-del{width:56px;}
+.col-del{width:118px;}
 
-.del-btn{width:26px;height:26px;border-radius:50%;background:transparent;color:var(--ink-soft);font-size:14px;display:flex;align-items:center;justify-content:center;}
-.del-btn:hover{background:var(--danger-bg);color:var(--danger);}
-.lock-row-btn{width:26px;height:26px;border-radius:50%;background:transparent;border:none;color:var(--ink-soft);font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}
-.lock-row-btn:hover{background:var(--brass-bg);color:var(--brass);}
-.unlock-row-btn{background:transparent;border:none;font-size:14px;cursor:pointer;padding:2px 6px;border-radius:5px;}
-.unlock-row-btn:hover{background:var(--brass-bg);}
+.row-actions{display:flex;gap:4px;justify-content:flex-end;white-space:nowrap;}
+.row-btn{padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--ink-soft);font-size:12px;cursor:pointer;line-height:1.3;}
+.row-btn:hover{background:var(--brass-bg);color:var(--brass);}
+.row-btn.del-btn:hover{background:var(--danger-bg);color:var(--danger);}
 
 .add-row-btn{margin-top:14px;font-size:13px;color:var(--brass);background:var(--brass-bg);padding:8px 14px;border-radius:6px;border:1px dashed var(--brass);}
 .add-row-btn:hover{opacity:.85;}
@@ -92,8 +90,10 @@ table.fee tr:last-child td{border-bottom:none;}
 .view-name{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Pretendard',sans-serif;font-weight:600;font-size:15.5px;}
 .locked-row{background:rgba(0,0,0,0.02);}
 .locked-row .view-name{font-weight:500;color:var(--ink-soft);}
-.drag-handle{cursor:grab;margin-right:8px;color:var(--ink-soft);user-select:none;display:inline-block;}
-.drag-handle:active{cursor:grabbing;}
+tr.locked-row{cursor:grab;}
+tr.locked-row:active{cursor:grabbing;}
+tr.locked-row .row-btn{cursor:pointer;}
+tr.locked-row.dragging{opacity:.5;}
 .level-cell{display:flex;align-items:center;}
 table.fee tbody tr.drag-over{background:var(--brass-bg);outline:1px dashed var(--brass);}
 .view-desc,.view-time{color:var(--ink-soft);font-size:13px;}
@@ -197,7 +197,7 @@ table.fee tbody tr.drag-over{background:var(--brass-bg);outline:1px dashed var(-
     --ok:#4B6B45;
     background:#fff;
   }
-  .topbar, .mode-controls, .status-line, .tabs .tab-btn, .add-row-btn, .del-btn, .author-input, .edit-only{display:none !important;}
+  .topbar, .mode-controls, .status-line, .tabs .tab-btn, .add-row-btn, .del-btn, .row-actions, .author-input, .edit-only{display:none !important;}
   .tabs{display:none;}
   .cat-panel{display:none !important;}
   .calc-card{border:none;padding:0;page-break-inside:avoid;}
@@ -232,6 +232,7 @@ body.force-print-view .status-line,
 body.force-print-view .tabs,
 body.force-print-view .add-row-btn,
 body.force-print-view .del-btn,
+body.force-print-view .row-actions,
 body.force-print-view .author-input,
 body.force-print-view .edit-only{display:none !important;}
 body.force-print-view .cat-panel{display:none !important;}
@@ -662,12 +663,12 @@ function renderCategoryHtml(cat){
 function lockedRowHtml(catId, r){
   const price = formatPrice(r.price);
   return `
-    <tr data-row="${r.id}" data-cat="${catId}" class="locked-row">
-      <td><div class="level-cell"><span class="drag-handle" draggable="true">⠿</span><div class="view-name">🔒 ${escapeHtml(r.level)}</div></div></td>
+    <tr data-row="${r.id}" data-cat="${catId}" class="locked-row" draggable="true">
+      <td><div class="view-name">${escapeHtml(r.level)}</div></td>
       <td><div class="view-desc">${escapeHtml(r.desc)}</div></td>
       <td><div class="view-time">${escapeHtml(r.time)}</div></td>
       <td><div class="view-price">${price ? price : '-'}${price ? '<small>원</small>' : ''}</div></td>
-      <td><button class="btn btn-sm unlock-row-btn" data-unlock="${r.id}" data-unlock-cat="${catId}">🔓</button></td>
+      <td><div class="row-actions"><button class="row-btn unlock-row-btn" data-unlock="${r.id}" data-unlock-cat="${catId}">수정</button><button class="row-btn del-btn" data-del="${r.id}">삭제</button></div></td>
     </tr>
   `;
 }
@@ -675,13 +676,12 @@ function lockedRowHtml(catId, r){
 function editRowHtml(catId, r){
   return `
     <tr data-row="${r.id}" data-cat="${catId}">
-      <td><span class="drag-handle" draggable="true">⠿</span><input class="cell-input" data-field="level" value="${escapeAttr(r.level)}" placeholder="과정명"></td>
+      <td><input class="cell-input" data-field="level" value="${escapeAttr(r.level)}" placeholder="과정명"></td>
       <td><input class="cell-input" data-field="desc" value="${escapeAttr(r.desc)}" placeholder="설명"></td>
       <td><input class="cell-input" data-field="time" value="${escapeAttr(r.time)}" placeholder="예: 주2회 60분"></td>
       <td><input class="cell-input price-input" data-field="price" value="${escapeAttr(formatPrice(r.price))}" placeholder="금액"></td>
       <td>
-        <button class="lock-row-btn" data-lock="${r.id}" data-lock-cat="${catId}" aria-label="잠그기" title="잠그기">🔒</button>
-        <button class="del-btn" data-del="${r.id}" aria-label="삭제">✕</button>
+        <div class="row-actions"><button class="row-btn lock-row-btn" data-lock="${r.id}" data-lock-cat="${catId}">완료</button><button class="row-btn del-btn" data-del="${r.id}">삭제</button></div>
       </td>
     </tr>
   `;
@@ -727,6 +727,10 @@ function attachCatalogEvents(){
   panelsEl.querySelectorAll('.del-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const rowId = btn.dataset.del;
+      const found = findRowById(rowId);
+      const rowName = found && found.row.level ? '"' + found.row.level + '" ' : '';
+      if(!window.confirm(rowName + '과정을 삭제할까요?')) return;
+      if(!window.confirm('⚠ 삭제 전 원장님께 보고하셨나요?\n\n원장님께 보고 후 삭제해 주세요.\n정말 삭제하시겠습니까?')) return;
       state.categories.forEach(cat => { cat.rows = cat.rows.filter(r => r.id !== rowId); });
       state.calculator.items = state.calculator.items.filter(i => i.courseId !== rowId);
       render();
@@ -743,10 +747,11 @@ function attachCatalogEvents(){
       scheduleSave();
     });
   });
+
   const ROW_LOCK_PIN = '6589';
   panelsEl.querySelectorAll('.unlock-row-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const input = window.prompt('잠금 해제 비밀번호를 입력하세요');
+      const input = window.prompt('수정 비밀번호를 입력하세요');
       if(input === null) return;
       if(input !== ROW_LOCK_PIN){
         alert('비밀번호가 올바르지 않습니다.');
@@ -773,14 +778,14 @@ function attachCatalogEvents(){
     });
   });
 
-  panelsEl.querySelectorAll('.drag-handle').forEach(handle => {
-    handle.addEventListener('dragstart', (e) => {
-      const tr = handle.closest('tr');
+  panelsEl.querySelectorAll('tr.locked-row').forEach(tr => {
+    tr.addEventListener('dragstart', (e) => {
       dragSource = { catId: tr.dataset.cat, rowId: tr.dataset.row };
       e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', tr.dataset.row);
     });
-    handle.addEventListener('dragend', () => {
-      panelsEl.querySelectorAll('tr.drag-over').forEach(tr => tr.classList.remove('drag-over'));
+    tr.addEventListener('dragend', () => {
+      panelsEl.querySelectorAll('tr.drag-over').forEach(r => r.classList.remove('drag-over'));
     });
   });
   panelsEl.querySelectorAll('table.fee tbody tr').forEach(tr => {
